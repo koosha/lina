@@ -74,9 +74,13 @@ def opensearch_container() -> Iterator[Any]:
     except ImportError:
         pytest.skip("testcontainers[opensearch] not installed")
     try:
+        # OpenSearchContainer already sets:
+        #   discovery.type=single-node, DISABLE_SECURITY_PLUGIN=true,
+        #   OPENSEARCH_INITIAL_ADMIN_PASSWORD=admin (image >= 2.12)
+        # Setting plugins.security.disabled here as well caused a duplicate-setting
+        # error ("setting [plugins.security.disabled] already set"), making the
+        # container exit with code 64 and the testcontainers wait to time out.
         container = OpenSearchContainer("opensearchproject/opensearch:2.13.0")
-        container.with_env("discovery.type", "single-node")
-        container.with_env("plugins.security.disabled", "true")
         container.start()
     except Exception as exc:  # noqa: BLE001 — Docker daemon down or image pull failure
         pytest.skip(f"opensearch container unavailable: {exc}")
@@ -89,13 +93,18 @@ def opensearch_container() -> Iterator[Any]:
 
 @pytest.fixture(scope="session")
 def opensearch_client(opensearch_container: Any) -> Iterator[Any]:
-    """Return an opensearch-py client bound to the test container."""
+    """Return an opensearch-py client bound to the test container.
+
+    Builds the URL from the container's exposed host/port. The
+    OpenSearchContainer convenience method ``get_client()`` exists, but it
+    forces ``http_auth`` even when security is disabled, which is fine but
+    unnecessary; an explicit URL keeps the client minimal.
+    """
     from opensearchpy import OpenSearch
 
-    if hasattr(opensearch_container, "get_url"):
-        url = opensearch_container.get_url()
-    else:
-        url = opensearch_container.get_connection_url()
+    host = opensearch_container.get_container_host_ip()
+    port = opensearch_container.get_exposed_port(9200)
+    url = f"http://{host}:{port}"
     client = OpenSearch([url], use_ssl=False, verify_certs=False)
     try:
         yield client

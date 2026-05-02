@@ -112,5 +112,85 @@ def _truncate_for_named(conn: Any) -> None:
     conn.commit()
 
 
+@main.command("list-templates")
+def list_templates_cmd() -> None:
+    from lina_redshift.templates import all_templates
+
+    payload = [
+        {
+            "query_type": t.query_type,
+            "allowed_roles": sorted(t.allowed_roles),
+            "default_limit": t.default_limit,
+            "max_limit": t.max_limit,
+            "template_version": t.template_version,
+            "params_schema": t.Params.model_json_schema(),
+        }
+        for t in all_templates()
+    ]
+    click.echo(json.dumps(payload, indent=2, default=str))
+
+
+@main.command("run")
+@click.argument("query_type")
+@click.option("--params", required=True)
+@click.option("--user-id", required=True)
+@click.option("--caller-roles", required=True, help="Comma-separated roles")
+@click.option("--request-id", default="cli_request")
+@click.pass_context
+def run_cmd(
+    ctx: click.Context,
+    query_type: str,
+    params: str,
+    user_id: str,
+    caller_roles: str,
+    request_id: str,
+) -> None:
+    from lina_redshift.caller import CallerContext
+    from lina_redshift.worker import RedshiftWorker
+
+    cfg = ctx.obj["config"]
+    parsed_params = json.loads(params)
+    caller = CallerContext(
+        user_id=user_id,
+        roles=frozenset(r.strip() for r in caller_roles.split(",") if r.strip()),
+        request_id=request_id,
+    )
+    conn = psycopg2.connect(cfg.dsn)
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SET statement_timeout = %s", (cfg.statement_timeout_ms,))
+        worker = RedshiftWorker(connection=conn)
+        packet = worker.run(query_type=query_type, params=parsed_params, caller=caller)
+    finally:
+        conn.close()
+    click.echo(packet.model_dump_json(by_alias=True, indent=2))
+
+
+@main.command("explain")
+@click.argument("query_type")
+@click.option("--params", required=True)
+@click.pass_context
+def explain_cmd(ctx: click.Context, query_type: str, params: str) -> None:
+    from lina_redshift.templates import get_template
+
+    cfg = ctx.obj["config"]
+    template = get_template(query_type)
+    parsed_params = json.loads(params)
+    parsed = template.Params.model_validate(parsed_params)
+    sql, binds = template.build_sql(parsed)
+
+    conn = psycopg2.connect(cfg.dsn)
+    try:
+        with conn.cursor() as cur:
+            cur.execute(f"EXPLAIN {sql}", binds)
+            plan_lines = [r[0] for r in cur.fetchall()]
+    finally:
+        conn.close()
+    click.echo(json.dumps(
+        {"sql": sql, "binds": {k: str(v) for k, v in binds.items()}, "explain_plan": plan_lines},
+        indent=2, default=str,
+    ))
+
+
 if __name__ == "__main__":
     main()

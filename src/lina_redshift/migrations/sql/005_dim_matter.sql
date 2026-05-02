@@ -1,0 +1,31 @@
+CREATE TABLE IF NOT EXISTS dim_matter (
+    matter_id varchar PRIMARY KEY,
+    client_matter_id varchar NOT NULL,
+    matter_number varchar,
+    matter_name varchar NOT NULL,
+    matter_description varchar(max),
+    matter_status varchar NOT NULL,
+    matter_type varchar NOT NULL,
+    practice_area varchar,
+    area_of_law_code varchar,
+    service_code varchar,
+    industry_code varchar,
+    jurisdiction varchar,
+    risk_level varchar,
+    complexity_level varchar,
+    open_date date NOT NULL,
+    close_date date,
+    legal_entity_id varchar,
+    business_unit varchar,
+    cost_center_id varchar,
+    matter_owner_user_id varchar,
+    lead_inhouse_counsel_user_id varchar,
+    invoice_approver_user_id varchar,
+    budget_amount decimal(18, 2),
+    budget_currency_code char(3),
+    created_at timestamp NOT NULL,
+    updated_at timestamp NOT NULL,
+    source_system varchar NOT NULL
+)
+DISTSTYLE KEY (matter_id)
+SORTKEY (matter_status, open_date);

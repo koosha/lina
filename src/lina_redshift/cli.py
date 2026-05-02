@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from importlib import resources
 from pathlib import Path
+from typing import Any
 
 import click
 import psycopg2
@@ -65,6 +66,50 @@ def migrate_status(ctx: click.Context) -> None:
     finally:
         conn.close()
     click.echo(json.dumps({"applied": applied, "pending": pending}, indent=2))
+
+
+@main.command("seed")
+@click.option("--reset", is_flag=True, default=False)
+@click.option("--named-only", "named_only", is_flag=True, default=False)
+@click.option("--bulk-only", "bulk_only", is_flag=True, default=False)
+@click.pass_context
+def seed_cmd(ctx: click.Context, reset: bool, named_only: bool, bulk_only: bool) -> None:
+    if named_only and bulk_only:
+        raise click.UsageError("--named-only and --bulk-only are mutually exclusive")
+
+    cfg = ctx.obj["config"]
+    conn = psycopg2.connect(cfg.dsn)
+    try:
+        if named_only:
+            from lina_redshift.seed.billing_codes import load_billing_codes
+            from lina_redshift.seed.named_entities import load_named_entities
+
+            if reset:
+                _truncate_for_named(conn)
+            load_billing_codes(conn)
+            load_named_entities(conn)
+        elif bulk_only:
+            from lina_redshift.seed.generator import load_bulk_generated
+
+            load_bulk_generated(conn)
+        else:
+            from lina_redshift.seed import load_all
+
+            load_all(conn, reset=reset)
+    finally:
+        conn.close()
+    click.echo(json.dumps({"loaded": True, "reset": reset}, indent=2))
+
+
+def _truncate_for_named(conn: Any) -> None:
+    """Light truncation for --named-only --reset."""
+    with conn.cursor() as cur:
+        cur.execute(
+            "TRUNCATE fact_invoice_line_item, fact_invoice, dim_matter, "
+            "dim_vendor, dim_timekeeper, dim_billing_code, dim_legal_entity, "
+            "dim_cost_center, fact_timekeeper_rate CASCADE"
+        )
+    conn.commit()
 
 
 if __name__ == "__main__":

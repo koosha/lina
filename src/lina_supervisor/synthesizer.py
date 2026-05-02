@@ -30,12 +30,15 @@ def stream_final_answer(
         *messages,
         {"role": "user", "content": _FINAL_INSTRUCTION},
     ]
-    stream = llm_client.chat.completions.create(
-        model=config.model,
-        max_tokens=config.synthesize_max_tokens,
-        messages=final_messages,
-        stream=True,
-    )
+    kwargs: dict[str, Any] = {
+        "model": config.model,
+        "max_completion_tokens": config.synthesize_max_tokens,
+        "messages": final_messages,
+        "stream": True,
+    }
+    if config.reasoning_effort != "none":
+        kwargs["reasoning_effort"] = config.reasoning_effort
+    stream = llm_client.chat.completions.create(**kwargs)
     for chunk in stream:
         choices = getattr(chunk, "choices", None) or []
         if not choices:

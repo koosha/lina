@@ -81,13 +81,16 @@ def _make_route_node(
     tools = build_tool_definitions()
 
     def route_node(state: SupervisorState) -> dict[str, Any]:
-        response = client.chat.completions.create(
-            model=config.model,
-            max_tokens=config.route_max_tokens,
-            tools=tools,
-            tool_choice="auto",
-            messages=state["messages"],
-        )
+        kwargs: dict[str, Any] = {
+            "model": config.model,
+            "max_completion_tokens": config.route_max_tokens,
+            "tools": tools,
+            "tool_choice": "auto",
+            "messages": state["messages"],
+        }
+        if config.reasoning_effort != "none":
+            kwargs["reasoning_effort"] = config.reasoning_effort
+        response = client.chat.completions.create(**kwargs)
         assistant_message = _assistant_message_from_response(response)
         new_messages = [*state["messages"], assistant_message]
 

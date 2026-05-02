@@ -11,7 +11,7 @@ This spec **inherits** locked decisions from C ([2026-05-02-lina-redshift-worker
 
 ## 1. Goal
 
-Ship `lina_supervisor` — a Python package + CLI (`lina-chat`) that takes a natural-language question from a lawyer, decides which worker(s) to call, dispatches typed query plans to A/B/C, synthesizes the result with an LLM (OpenAI `gpt-4o`), and returns a normalized answer. Multi-turn conversation supported via in-memory session state. Production hardening (durable state, FastAPI, AWS deployment) deferred.
+Ship `lina_supervisor` — a Python package + CLI (`lina-chat`) that takes a natural-language question from a lawyer, decides which worker(s) to call, dispatches typed query plans to A/B/C, synthesizes the result with an LLM (OpenAI `gpt-5.2`), and returns a normalized answer. Multi-turn conversation supported via in-memory session state. Production hardening (durable state, FastAPI, AWS deployment) deferred.
 
 End-to-end example flow:
 
@@ -35,16 +35,18 @@ Supervisor returns:
 
 | # | Decision | Choice | Notes |
 |---|---|---|---|
-| 1 | LLM provider | OpenAI API direct (`openai` SDK), model `gpt-4o` | AWS / Azure proxy via `base_url` deferred; lowest-latency path |
-| 2 | Orchestration framework | LangGraph 0.2+ | Python-native supervisor pattern; integrates with OpenAI SDK |
-| 3 | Worker invocation | OpenAI function tool calls; one tool per worker template surface | LLM never sees raw SQL or DSL |
-| 4 | Streaming | Yes — token streaming for synthesis + structured events for routing | Better CLI UX |
-| 5 | Conversation state | In-memory `SessionStore` keyed by `request_id`; pluggable backend interface for future durability | |
-| 6 | Routing | LLM-driven (no separate semantic router) | Deterministic *contracts*, not deterministic routing |
-| 7 | Synthesis | Single OpenAI pass receiving worker `ResultPacket`s as `tool` role messages | Standard tool-use loop |
-| 8 | Deliverable | Library + `lina-chat` CLI | Service deferred |
-| 9 | Test strategy | Mock-based unit + VCR-replayed integration | Cost discipline |
-| 10 | Cost guardrails | Token budget per call + `max_worker_calls=8` per user turn | Prevents loops |
+| 1 | LLM provider | OpenAI API direct (`openai` SDK), model `gpt-5.2` (`chat.completions` endpoint) | AWS / Azure proxy via `base_url` deferred. `gpt-5.2` knowledge cutoff Aug 31 2025; 400k context, 128k max output. |
+| 2 | Reasoning effort | `reasoning_effort=none` by default (treats `gpt-5.2` as a non-reasoning chat model). Configurable via `LINA_SUPERVISOR_REASONING_EFFORT` to `low`/`medium`/`high`/`xhigh` for harder multi-hop questions. Only sent to API when not `none` for forward compatibility with non-reasoning families. | Higher levels improve multi-hop tool routing at higher latency + cost |
+| 3 | Token cap parameter | `max_completion_tokens` (newer canonical name; works for both reasoning and non-reasoning families) | `max_tokens` is deprecated for the `gpt-5.x` family |
+| 4 | Orchestration framework | LangGraph 0.2+ | Python-native supervisor pattern; integrates with OpenAI SDK |
+| 5 | Worker invocation | OpenAI function tool calls; one tool per worker template surface | LLM never sees raw SQL or DSL |
+| 6 | Streaming | Yes — token streaming for synthesis + structured events for routing | Better CLI UX |
+| 7 | Conversation state | In-memory `SessionStore` keyed by `request_id`; pluggable backend interface for future durability | |
+| 8 | Routing | LLM-driven (no separate semantic router) | Deterministic *contracts*, not deterministic routing |
+| 9 | Synthesis | Single OpenAI pass receiving worker `ResultPacket`s as `tool` role messages | Standard tool-use loop |
+| 10 | Deliverable | Library + `lina-chat` CLI | Service deferred |
+| 11 | Test strategy | Mock-based unit + VCR-replayed integration | Cost discipline |
+| 12 | Cost guardrails | Token budget per call + `max_worker_calls=8` per user turn + `reasoning_effort=none` default | Prevents loops and stops reasoning-token blowup |
 
 ---
 
@@ -298,7 +300,7 @@ Both modes stream output by default. The REPL prints worker tool calls as inline
 
 `--max-worker-calls` overrides the default 8.
 
-`--model` overrides the default `gpt-4o`.
+`--model` overrides the default `gpt-5.2`. `--reasoning-effort` (or `LINA_SUPERVISOR_REASONING_EFFORT`) overrides the default `none`.
 
 Configuration:
 - `OPENAI_API_KEY` — required.
@@ -323,7 +325,7 @@ class SupervisorResponse(BaseModel):
     worker_packets: list[dict[str, Any]] # echoes of each worker tool result, in order
     worker_call_count: int
     truncated: bool                      # True if max_worker_calls was hit
-    model: str                           # gpt-4o or override
+    model: str                           # gpt-5.2 or override
     duration_ms: int
     sql_trace_id: str                    # ULID; same field name as ResultPacket for audit consistency
 ```

@@ -17,7 +17,7 @@ graph TB
         direction TB
         Chat --> Resolver[CallerResolver]
         Resolver --> Graph["LangGraph state machine<br/>(route → execute_tools → synthesize)"]
-        Graph <--> LLM[(OpenAI gpt-4o<br/>OpenAI API)]
+        Graph <--> LLM[(OpenAI gpt-5.2<br/>OpenAI API)]
     end
 
     Graph -->|tool: query_redshift| RedshiftWorker
@@ -46,7 +46,7 @@ graph TB
     class LLM llm
 ```
 
-**How it works.** The user asks a question. The supervisor resolves the user's `CallerContext` via Subsystem A (`user_lookup`), then enters a LangGraph loop: OpenAI (`gpt-4o`) picks one of three tools (`query_redshift`, `search_users`, `search_vendors`) with structured `{query_type, params}` arguments matching a registered template. The matching worker validates roles, runs the bounded query, and returns a normalized `ResultPacket`. The model either calls another tool or synthesizes a final streaming answer that cites every packet it consumed. A hard cap (`max_worker_calls=8` per turn) prevents runaway loops.
+**How it works.** The user asks a question. The supervisor resolves the user's `CallerContext` via Subsystem A (`user_lookup`), then enters a LangGraph loop: OpenAI (`gpt-5.2`, with optional `reasoning_effort` from `none` → `xhigh`) picks one of three tools (`query_redshift`, `search_users`, `search_vendors`) with structured `{query_type, params}` arguments matching a registered template. The matching worker validates roles, runs the bounded query, and returns a normalized `ResultPacket`. The model either calls another tool or synthesizes a final streaming answer that cites every packet it consumed. A hard cap (`max_worker_calls=8` per turn) prevents runaway loops.
 
 Each worker is independently usable as a library or CLI — see the per-subsystem sections below.
 
@@ -249,10 +249,11 @@ The supervisor (`lina_supervisor`) wraps these three workers via `WorkerHub` + L
 | Variable | Required | Purpose |
 |---|---|---|
 | `OPENAI_API_KEY` | yes | OpenAI API key |
-| `LINA_SUPERVISOR_MODEL` | no (default `gpt-4o`) | Override the OpenAI model |
+| `LINA_SUPERVISOR_MODEL` | no (default `gpt-5.2`) | Override the OpenAI model |
+| `LINA_SUPERVISOR_REASONING_EFFORT` | no (default `none`) | One of `none`, `low`, `medium`, `high`, `xhigh`. `none` = treat as a non-reasoning chat model (fastest); higher levels improve multi-hop tool routing at higher latency + cost. Only sent to the API when not `none`. |
 | `LINA_SUPERVISOR_MAX_WORKER_CALLS` | no (default 8) | Hard cap on worker calls per user turn |
-| `LINA_SUPERVISOR_ROUTE_MAX_TOKENS` | no (default 2048) | Token cap for routing pass |
-| `LINA_SUPERVISOR_SYNTHESIZE_MAX_TOKENS` | no (default 4096) | Token cap for synthesis pass |
+| `LINA_SUPERVISOR_ROUTE_MAX_TOKENS` | no (default 2048) | Token cap for routing pass (`max_completion_tokens`) |
+| `LINA_SUPERVISOR_SYNTHESIZE_MAX_TOKENS` | no (default 4096) | Token cap for synthesis pass (`max_completion_tokens`) |
 | `LINA_SUPERVISOR_REQUEST_TIMEOUT_SECONDS` | no (default 60) | Per-request timeout for OpenAI |
 
 The supervisor reuses the Redshift and OpenSearch env vars above; any worker whose env vars are unset is omitted from the tool catalog rather than failing the run.

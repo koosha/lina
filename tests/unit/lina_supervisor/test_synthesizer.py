@@ -14,7 +14,7 @@ from lina_supervisor.synthesizer import stream_final_answer
 def _config(**overrides: Any) -> SupervisorConfig:
     base = {
         "openai_api_key": "sk-test",
-        "model": "gpt-4o",
+        "model": "gpt-5.2",
         "synthesize_max_tokens": 1234,
         "request_timeout_seconds": 42,
     }
@@ -83,7 +83,7 @@ def test_appends_final_instruction_message() -> None:
 
 
 @pytest.mark.unit
-def test_passes_max_tokens_and_model_and_stream() -> None:
+def test_passes_max_completion_tokens_and_model_and_stream() -> None:
     client = _client_with_chunks(["ok"])
     cfg = _config(synthesize_max_tokens=2048)
     list(
@@ -95,8 +95,26 @@ def test_passes_max_tokens_and_model_and_stream() -> None:
     )
     kwargs = client.chat.completions.create.call_args.kwargs
     assert kwargs["model"] == cfg.model
-    assert kwargs["max_tokens"] == 2048
+    assert kwargs["max_completion_tokens"] == 2048
+    assert "max_tokens" not in kwargs  # newer canonical kwarg only
     assert kwargs["stream"] is True
+    # reasoning_effort default is "none" → not sent
+    assert "reasoning_effort" not in kwargs
+
+
+@pytest.mark.unit
+def test_sends_reasoning_effort_when_not_none() -> None:
+    client = _client_with_chunks(["ok"])
+    cfg = _config(synthesize_max_tokens=512, reasoning_effort="medium")
+    list(
+        stream_final_answer(
+            llm_client=client,
+            config=cfg,
+            messages=[],
+        )
+    )
+    kwargs = client.chat.completions.create.call_args.kwargs
+    assert kwargs["reasoning_effort"] == "medium"
 
 
 @pytest.mark.unit

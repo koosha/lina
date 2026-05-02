@@ -1,6 +1,6 @@
 # LINA Supervisor (Subsystem D) Implementation Plan
 
-> **Update 2026-05-02:** Subsystem D shipped initially against Anthropic Claude. Per a follow-up dispatch, the LLM provider was swapped to OpenAI (`gpt-4o`). The architecture and task structure described below are unchanged; replace any reference to the `anthropic` SDK with `openai` and `ANTHROPIC_API_KEY` with `OPENAI_API_KEY`. Tool definitions moved from Anthropic's `{name, description, input_schema}` shape to OpenAI's `{type: "function", function: {name, description, parameters}}` shape; tool results moved from `user`-role `tool_result` blocks to `tool`-role messages keyed by `tool_call_id`.
+> **Update 2026-05-02:** Subsystem D shipped initially against Anthropic Claude. Per a follow-up dispatch, the LLM provider was swapped to OpenAI (interim default `gpt-4o`, then retuned to `gpt-5.2` with optional `reasoning_effort=none|low|medium|high|xhigh` and `max_completion_tokens` instead of `max_tokens`). The architecture and task structure described below are unchanged; replace any reference to the `anthropic` SDK with `openai` and `ANTHROPIC_API_KEY` with `OPENAI_API_KEY`. Tool definitions moved from Anthropic's `{name, description, input_schema}` shape to OpenAI's `{type: "function", function: {name, description, parameters}}` shape; tool results moved from `user`-role `tool_result` blocks to `tool`-role messages keyed by `tool_call_id`.
 
 > **For agentic workers:** Use superpowers:subagent-driven-development. Steps use checkbox (`- [ ]`) syntax.
 

@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import contextlib
 import os
 from collections.abc import Iterator
+from typing import Any
 
 import psycopg2
 import pytest
@@ -43,3 +45,45 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
     for item in items:
         if "integration" in item.keywords:
             item.add_marker(skip_integration)
+
+
+@pytest.fixture(scope="session")
+def opensearch_container() -> Iterator[Any]:
+    """Spin up a single OpenSearch container per test session.
+
+    Skips when testcontainers[opensearch] is unavailable or when the local
+    Docker daemon is not running.
+    """
+    try:
+        from testcontainers.opensearch import OpenSearchContainer
+    except ImportError:
+        pytest.skip("testcontainers[opensearch] not installed")
+    try:
+        container = OpenSearchContainer("opensearchproject/opensearch:2.13.0")
+        container.with_env("discovery.type", "single-node")
+        container.with_env("plugins.security.disabled", "true")
+        container.start()
+    except Exception as exc:  # noqa: BLE001 — Docker daemon down or image pull failure
+        pytest.skip(f"opensearch container unavailable: {exc}")
+    try:
+        yield container
+    finally:
+        with contextlib.suppress(Exception):
+            container.stop()
+
+
+@pytest.fixture(scope="session")
+def opensearch_client(opensearch_container: Any) -> Iterator[Any]:
+    """Return an opensearch-py client bound to the test container."""
+    from opensearchpy import OpenSearch
+
+    if hasattr(opensearch_container, "get_url"):
+        url = opensearch_container.get_url()
+    else:
+        url = opensearch_container.get_connection_url()
+    client = OpenSearch([url], use_ssl=False, verify_certs=False)
+    try:
+        yield client
+    finally:
+        with contextlib.suppress(Exception):
+            client.close()

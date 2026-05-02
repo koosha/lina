@@ -38,13 +38,28 @@ def pg_conn(pg_dsn: str) -> Iterator[PgConnection]:
 
 
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
-    """Skip integration tests when LINA_REDSHIFT_DSN is unset."""
-    if os.environ.get("LINA_REDSHIFT_DSN"):
-        return
-    skip_integration = pytest.mark.skip(reason="LINA_REDSHIFT_DSN not set")
+    """Skip integration tests whose backing service env var is unset.
+
+    - Tests under `tests/integration/lina_users` and `tests/integration/lina_vendors`
+      target AWS OpenSearch and require `LINA_OPENSEARCH_HOST`.
+    - All other integration tests target Redshift and require `LINA_REDSHIFT_DSN`.
+    """
+    has_redshift = bool(os.environ.get("LINA_REDSHIFT_DSN"))
+    has_opensearch = bool(os.environ.get("LINA_OPENSEARCH_HOST"))
+    skip_redshift = pytest.mark.skip(reason="LINA_REDSHIFT_DSN not set")
+    skip_opensearch = pytest.mark.skip(reason="LINA_OPENSEARCH_HOST not set")
     for item in items:
-        if "integration" in item.keywords:
-            item.add_marker(skip_integration)
+        if "integration" not in item.keywords:
+            continue
+        path = str(item.fspath)
+        is_opensearch_suite = (
+            "/integration/lina_users/" in path or "/integration/lina_vendors/" in path
+        )
+        if is_opensearch_suite:
+            if not has_opensearch:
+                item.add_marker(skip_opensearch)
+        elif not has_redshift:
+            item.add_marker(skip_redshift)
 
 
 @pytest.fixture(scope="session")

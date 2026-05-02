@@ -1,31 +1,25 @@
-"""Typed exceptions raised by the Redshift worker."""
+"""Re-export typed exceptions from lina_core; keep Redshift-named alias."""
 
-from __future__ import annotations
+from lina_core.errors import (
+    AuthorizationError,
+    BackendConnectionError,
+    InvalidParametersError,
+    QueryTimeoutError,
+    UnknownTemplateError,
+    WorkerError,
+    WorkerInternalError,
+)
 
+# Backward-compatible alias for the Redshift-specific name
+RedshiftConnectionError = BackendConnectionError
 
-class WorkerError(Exception):
-    """Base class for worker exceptions caught at the boundary."""
-
-
-class UnknownTemplateError(WorkerError):
-    """Raised when a query_type does not match any registered template."""
-
-
-class AuthorizationError(WorkerError):
-    """Raised when the caller lacks any role required by the template."""
-
-
-class InvalidParametersError(WorkerError):
-    """Raised when the parameters fail pydantic validation."""
-
-
-class QueryTimeoutError(WorkerError):
-    """Raised when statement_timeout is reached during execution."""
-
-
-class RedshiftConnectionError(WorkerError):
-    """Raised on driver-level connection failure."""
-
-
-class WorkerInternalError(WorkerError):
-    """Raised on any other internal failure; logged with sql_trace_id."""
+__all__ = [
+    "AuthorizationError",
+    "BackendConnectionError",
+    "InvalidParametersError",
+    "QueryTimeoutError",
+    "RedshiftConnectionError",
+    "UnknownTemplateError",
+    "WorkerError",
+    "WorkerInternalError",
+]

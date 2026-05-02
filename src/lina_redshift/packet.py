@@ -1,46 +1,33 @@
-"""ResultPacket and ErrorPacket — normalized worker output shapes."""
+"""Redshift-specific ResultPacket and ErrorPacket — preset source_engine/schema."""
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+
+from lina_core.packet import ErrorPacket as _CoreErrorPacket
+from lina_core.packet import ResultPacket as _CoreResultPacket
+from lina_core.packet import _ErrorBody
 
 
-class ResultPacket(BaseModel):
+class ResultPacket(_CoreResultPacket):
     source_engine: Literal["redshift"] = "redshift"
     schema_name: Literal["legal_matter_spend"] = Field(
         default="legal_matter_spend",
         alias="schema",
     )
-    result_type: str
-    metrics: list[dict[str, Any]]
-    sql_trace_id: str
-    row_count: int
-    truncated: bool = False
-
-    model_config = {"populate_by_name": True}
 
 
-class _ErrorBody(BaseModel):
-    type: str
-    message: str
-
-
-class ErrorPacket(BaseModel):
+class ErrorPacket(_CoreErrorPacket):
     source_engine: Literal["redshift"] = "redshift"
     schema_name: Literal["legal_matter_spend"] = Field(
         default="legal_matter_spend",
         alias="schema",
     )
-    result_type: str
-    sql_trace_id: str
-    error: _ErrorBody
-
-    model_config = {"populate_by_name": True}
 
     @classmethod
-    def from_exception(
+    def from_exception(  # type: ignore[override]
         cls,
         exc: Exception,
         *,

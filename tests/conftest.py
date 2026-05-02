@@ -42,6 +42,9 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
 
     - Tests under `tests/integration/lina_users` and `tests/integration/lina_vendors`
       target AWS OpenSearch and require `LINA_OPENSEARCH_HOST`.
+    - Tests under `tests/integration/lina_supervisor` target the OpenAI API and
+      have their own skip rule in that directory's conftest (cassette OR
+      `OPENAI_API_KEY`); this top-level hook does not gate them.
     - All other integration tests target Redshift and require `LINA_REDSHIFT_DSN`.
     """
     has_redshift = bool(os.environ.get("LINA_REDSHIFT_DSN"))
@@ -55,6 +58,10 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
         is_opensearch_suite = (
             "/integration/lina_users/" in path or "/integration/lina_vendors/" in path
         )
+        is_supervisor_suite = "/integration/lina_supervisor/" in path
+        if is_supervisor_suite:
+            # Handled by tests/integration/lina_supervisor/conftest.py
+            continue
         if is_opensearch_suite:
             if not has_opensearch:
                 item.add_marker(skip_opensearch)

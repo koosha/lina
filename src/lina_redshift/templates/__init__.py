@@ -31,3 +31,8 @@ def get_template(query_type: str) -> QueryTemplate:
 
 def all_templates() -> list[QueryTemplate]:
     return list(TEMPLATE_REGISTRY.values())
+
+
+from lina_redshift.templates.matter_lookup import MatterLookupTemplate  # noqa: E402
+
+register(MatterLookupTemplate())

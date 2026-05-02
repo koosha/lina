@@ -33,6 +33,7 @@ def all_templates() -> list[QueryTemplate]:
     return list(TEMPLATE_REGISTRY.values())
 
 
+from lina_redshift.templates.invoice_search import InvoiceSearchTemplate  # noqa: E402
 from lina_redshift.templates.matter_lookup import MatterLookupTemplate  # noqa: E402
 from lina_redshift.templates.matter_spend_summary import MatterSpendSummaryTemplate  # noqa: E402
 from lina_redshift.templates.timekeeper_rate_analysis import (  # noqa: E402
@@ -44,3 +45,4 @@ register(MatterLookupTemplate())
 register(MatterSpendSummaryTemplate())
 register(VendorSpendSummaryTemplate())
 register(TimekeeperRateAnalysisTemplate())
+register(InvoiceSearchTemplate())

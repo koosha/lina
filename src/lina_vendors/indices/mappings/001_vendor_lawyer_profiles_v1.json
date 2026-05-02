@@ -1,0 +1,59 @@
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 0
+  },
+  "mappings": {
+    "properties": {
+      "timekeeper_id": {"type": "keyword"},
+      "vendor_id": {"type": "keyword"},
+      "vendor_name": {"type": "text", "fields": {"keyword": {"type": "keyword"}}},
+      "first_name": {"type": "text", "fields": {"keyword": {"type": "keyword"}}},
+      "last_name": {"type": "text", "fields": {"keyword": {"type": "keyword"}}},
+      "display_name": {"type": "text", "fields": {"keyword": {"type": "keyword"}}},
+      "email": {"type": "keyword"},
+      "phone_number": {"type": "keyword"},
+      "office_country_code": {"type": "keyword"},
+      "office_state_province": {"type": "keyword"},
+      "office_city": {"type": "keyword"},
+      "office_postal_code": {"type": "keyword"},
+      "bar_admissions": {"type": "keyword"},
+      "jurisdictions": {"type": "keyword"},
+      "industries": {"type": "keyword"},
+      "practice_areas": {"type": "keyword"},
+      "currency_code": {"type": "keyword"},
+      "active_status": {"type": "keyword"},
+      "timekeeper_classification": {"type": "keyword"},
+      "source_system": {"type": "keyword"},
+      "expertise_summary": {"type": "text"},
+      "representative_matters_summary": {"type": "text"},
+      "standard_hourly_rate": {"type": "scaled_float", "scaling_factor": 100},
+      "effective_hourly_rate": {"type": "scaled_float", "scaling_factor": 100},
+      "years_of_experience": {"type": "integer"},
+      "rate_history": {
+        "type": "nested",
+        "properties": {
+          "rate_type": {"type": "keyword"},
+          "hourly_rate": {"type": "scaled_float", "scaling_factor": 100},
+          "currency_code": {"type": "keyword"},
+          "effective_start_date": {"type": "date"},
+          "effective_end_date": {"type": "date"},
+          "matter_id": {"type": "keyword"},
+          "approval_status": {"type": "keyword"}
+        }
+      },
+      "profile_sources": {
+        "type": "nested",
+        "properties": {
+          "source_name": {"type": "keyword"},
+          "source_record_id": {"type": "keyword"},
+          "last_synced_at": {"type": "date"}
+        }
+      },
+      "created_at": {"type": "date"},
+      "updated_at": {"type": "date"},
+      "rate_effective_start_date": {"type": "date"},
+      "rate_effective_end_date": {"type": "date"}
+    }
+  }
+}

@@ -1,26 +1,67 @@
-# LINA — Read-only Workers for Legal Matter, User, and Vendor Data
+# LINA — Legal Intelligence & Navigation Assistant
 
-LINA exposes typed catalogs of read-only query templates over three backing
-stores so a chat tier can retrieve matter / spend, corporate user, and outside
-counsel facts without writing freeform SQL or DSL. Project intent and full data
-contract: [`lina.md`](./lina.md).
+A read-only chat surface for lawyers. Natural-language questions go in; typed worker calls go out to three governed data stores; a synthesized answer comes back with citations. No freeform SQL or DSL ever reaches the LLM.
 
-| Subsystem | Worker | Backend | Schema / index |
-|---|---|---|---|
-| C | `RedshiftWorker` (`lina-redshift`) | Amazon Redshift Serverless (Postgres locally for tests) | `legal_matter_spend` |
-| A | `UserSearchWorker` (`lina-users`) | Amazon OpenSearch | `corp_user_profiles_v1` |
-| B | `VendorSearchWorker` (`lina-vendors`) | Amazon OpenSearch | `vendor_lawyer_profiles_v1` |
-| D | `lina-chat` supervisor (LangGraph + Anthropic) | the three workers above | — |
+Project intent and the full data contract: [`lina.md`](./lina.md).
 
-Design contracts:
+---
 
-- C: [`docs/superpowers/specs/2026-05-02-lina-redshift-worker-design.md`](./docs/superpowers/specs/2026-05-02-lina-redshift-worker-design.md)
-- A + B: [`docs/superpowers/specs/2026-05-02-lina-opensearch-workers-design.md`](./docs/superpowers/specs/2026-05-02-lina-opensearch-workers-design.md)
-- D: [`docs/superpowers/specs/2026-05-02-lina-supervisor-design.md`](./docs/superpowers/specs/2026-05-02-lina-supervisor-design.md)
+## Architecture
+
+```mermaid
+graph TB
+    User([Lawyer])
+    User -->|"natural-language question"| Chat[lina-chat CLI]
+
+    subgraph D["Subsystem D · lina-supervisor"]
+        direction TB
+        Chat --> Resolver[CallerResolver]
+        Resolver --> Graph["LangGraph state machine<br/>(route → execute_tools → synthesize)"]
+        Graph <--> Claude[(Claude Sonnet 4.7<br/>Anthropic API)]
+    end
+
+    Graph -->|tool: query_redshift| RedshiftWorker
+    Graph -->|tool: search_users| UserSearchWorker
+    Graph -->|tool: search_vendors| VendorSearchWorker
+
+    subgraph C["Subsystem C · lina-redshift"]
+        RedshiftWorker --> RS[("Amazon Redshift<br/><b>legal_matter_spend</b><br/>12 tables · 4 MVs")]
+    end
+
+    subgraph A["Subsystem A · lina-users"]
+        UserSearchWorker --> OS1[("Amazon OpenSearch<br/><b>corp_user_profiles_v1</b>")]
+    end
+
+    subgraph B["Subsystem B · lina-vendors"]
+        VendorSearchWorker --> OS2[("Amazon OpenSearch<br/><b>vendor_lawyer_profiles_v1</b>")]
+    end
+
+    Graph -->|"streamed answer<br/>+ source packets"| User
+
+    classDef backend fill:#1e293b,stroke:#475569,color:#e2e8f0
+    classDef worker fill:#0f766e,stroke:#14b8a6,color:#f0fdfa
+    classDef llm fill:#7c2d12,stroke:#ea580c,color:#fff7ed
+    class RS,OS1,OS2 backend
+    class RedshiftWorker,UserSearchWorker,VendorSearchWorker worker
+    class Claude llm
+```
+
+**How it works.** The user asks a question. The supervisor resolves the user's `CallerContext` via Subsystem A (`user_lookup`), then enters a LangGraph loop: Claude picks one of three tools (`query_redshift`, `search_users`, `search_vendors`) with structured `{query_type, params}` arguments matching a registered template. The matching worker validates roles, runs the bounded query, and returns a normalized `ResultPacket`. Claude either calls another tool or synthesizes a final streaming answer that cites every packet it consumed. A hard cap (`max_worker_calls=8` per turn) prevents runaway loops.
+
+Each worker is independently usable as a library or CLI — see the per-subsystem sections below.
+
+| Subsystem | Worker | CLI | Backend | Templates | Design doc |
+|---|---|---|---|---|---|
+| **C** | `RedshiftWorker` | `lina-redshift` | Amazon Redshift Serverless (Postgres locally) | 6 | [redshift](./docs/superpowers/specs/2026-05-02-lina-redshift-worker-design.md) |
+| **A** | `UserSearchWorker` | `lina-users` | Amazon OpenSearch | 4 | [opensearch](./docs/superpowers/specs/2026-05-02-lina-opensearch-workers-design.md) |
+| **B** | `VendorSearchWorker` | `lina-vendors` | Amazon OpenSearch | 4 | [opensearch](./docs/superpowers/specs/2026-05-02-lina-opensearch-workers-design.md) |
+| **D** | LangGraph supervisor | `lina-chat` | A + B + C | — | [supervisor](./docs/superpowers/specs/2026-05-02-lina-supervisor-design.md) |
+
+---
 
 ## Quickstart
 
-### 1. Install
+### Install
 
 ```bash
 python3.12 -m venv .venv
@@ -28,20 +69,17 @@ source .venv/bin/activate
 pip install -e ".[dev]"
 ```
 
-### 2. Local development
+### Run the unit suite
 
-The unit suites are hermetic:
-
-- C uses `pytest-postgresql` to spin up an ephemeral Postgres per test (Docker not required for the Postgres path itself, though it is required for some auxiliary tests).
-- A and B use `testcontainers[opensearch]` to spin up a single OpenSearch container per session. Tests skip cleanly when Docker is not running.
+The unit tests are hermetic. C uses `pytest-postgresql` to spin up an ephemeral Postgres per session; A and B use `testcontainers[opensearch]` (Docker required — tests skip cleanly otherwise).
 
 ```bash
 pytest -v
 ```
 
-### 3. Try the CLIs
+### Try each CLI locally
 
-#### Subsystem C — `lina-redshift`
+#### `lina-redshift` — matter, vendor, and timekeeper analytics
 
 ```bash
 docker run -d --name lina-pg -e POSTGRES_PASSWORD=lina -p 5432:5432 postgres:16
@@ -49,89 +87,140 @@ export LINA_POSTGRES_DSN=postgresql://postgres:lina@localhost:5432/postgres
 
 lina-redshift --target postgres migrate up
 lina-redshift --target postgres seed
-lina-redshift --target postgres list-templates
-lina-redshift --target postgres run matter_lookup \
-    --params '{"matter_id": "matter_acme_v_beta"}' \
+lina-redshift --target postgres run matter_spend_summary \
+    --params '{"matter_ids": ["matter_acme_v_beta"], "fiscal_periods": ["2024-Q4"]}' \
     --user-id user_jane_smith --caller-roles legal_ops
 ```
 
-#### Subsystem A — `lina-users`
+#### `lina-users` and `lina-vendors` — corporate user / vendor lawyer search
 
 ```bash
-export LINA_OPENSEARCH_HOST=https://search-corp-users.example.us-east-1.es.amazonaws.com
+export LINA_OPENSEARCH_HOST=https://search-corp.us-east-1.es.amazonaws.com
 export LINA_OPENSEARCH_AUTH=aws_sigv4
 export LINA_AWS_REGION=us-east-1
 
-lina-users indices apply
-lina-users seed
-lina-users list-templates
-lina-users run user_lookup \
-    --params '{"user_id": "user_jane_smith"}' \
+lina-users indices apply && lina-users seed
+lina-users run user_search --params '{"query": "privacy counsel"}' \
+    --user-id user_jane_smith --caller-roles legal_ops
+
+lina-vendors indices apply && lina-vendors seed
+lina-vendors run lawyer_search --params '{"query": "California privacy litigation"}' \
     --user-id user_jane_smith --caller-roles legal_ops
 ```
 
-#### Subsystem B — `lina-vendors`
-
-```bash
-# Reuses the same LINA_OPENSEARCH_* env vars as Subsystem A
-lina-vendors indices apply
-lina-vendors seed
-lina-vendors list-templates
-lina-vendors run timekeeper_lookup \
-    --params '{"timekeeper_id": "tk_walker_partner"}' \
-    --user-id user_jane_smith --caller-roles legal_ops
-```
-
-#### Subsystem D — `lina-chat` supervisor
+#### `lina-chat` — the chat supervisor
 
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...
 export LINA_REDSHIFT_DSN=postgresql://user:pass@workgroup-host:5439/dev
-export LINA_OPENSEARCH_HOST=https://search-...es.amazonaws.com
+export LINA_OPENSEARCH_HOST=https://search-corp.us-east-1.es.amazonaws.com
 export LINA_OPENSEARCH_AUTH=aws_sigv4
 export LINA_AWS_REGION=us-east-1
 
 lina-chat ask --user-id user_jane_smith \
     --query "How much did Walker bill on Acme last quarter?"
 
-# Multi-turn REPL
-lina-chat repl --user-id user_jane_smith
+lina-chat repl --user-id user_jane_smith        # multi-turn
 ```
 
-`lina-chat` lazily detects which workers are reachable and only exposes the
-matching tools to the LLM, so it stays usable when only Redshift or only
-OpenSearch is configured.
+`lina-chat` lazily detects which workers are reachable and only exposes the matching tools to the LLM, so it stays usable when only Redshift or only OpenSearch is configured.
 
-##### How the supervisor works
-
-The supervisor is a three-node LangGraph state machine — `route` → `execute_tools` → (loop back to `route` or fall through to) `synthesize`. `route` calls Claude with the three worker tools (`query_redshift`, `search_users`, `search_vendors`); `execute_tools` dispatches each `tool_use` block via the `WorkerHub`, appends the typed `ResultPacket` as a `tool_result` block, and increments a per-turn worker-call counter. When the counter hits `LINA_SUPERVISOR_MAX_WORKER_CALLS` (default 8) the loop falls through to `synthesize`, which streams a final answer with the data already gathered. See [§5 of the supervisor design doc](./docs/superpowers/specs/2026-05-02-lina-supervisor-design.md#5-graph-topology-langgraph) for the full graph diagram.
-
-### 4. Run integration tests against real backends
+### Run the integration suites against real backends
 
 ```bash
-# Redshift Serverless smoke tests (8 tests)
-export LINA_REDSHIFT_DSN=postgresql://user:pass@workgroup-host:5439/dev
-lina-redshift --target redshift migrate up
-lina-redshift --target redshift seed
+# Redshift Serverless (8 tests)
+lina-redshift --target redshift migrate up && lina-redshift --target redshift seed
 pytest -m integration tests/integration/test_redshift_smoke.py -v
 
-# AWS OpenSearch smoke tests (8 tests — A + B)
-export LINA_OPENSEARCH_HOST=https://search-...es.amazonaws.com
-export LINA_OPENSEARCH_AUTH=aws_sigv4
-export LINA_AWS_REGION=us-east-1
+# AWS OpenSearch (8 tests — A + B)
 lina-users indices apply && lina-users seed
 lina-vendors indices apply && lina-vendors seed
 pytest -m integration tests/integration/lina_users tests/integration/lina_vendors -v
 
-# Supervisor smoke tests (2 tests, VCR-replayed) — require either a recorded
-# YAML cassette in tests/integration/lina_supervisor/cassettes/ or a live
-# ANTHROPIC_API_KEY. See tests/integration/lina_supervisor/README.md for the
-# recording workflow.
+# Supervisor (2 tests, VCR-replayed; cassette or live API key required)
 pytest -m integration tests/integration/lina_supervisor -v
 ```
 
-Without these env vars set (and without any committed supervisor cassettes),
-`pytest -m integration` collects 18 tests and skips all of them.
+Without env vars (and without committed supervisor cassettes), `pytest -m integration` collects 18 tests and skips all of them.
+
+---
+
+## Library API
+
+Every worker has the same shape: `worker.run(query_type=..., params=..., caller=...) -> ResultPacket | ErrorPacket`.
+
+```python
+import os, psycopg2
+from lina_core.caller import CallerContext
+from lina_redshift.worker import RedshiftWorker
+from lina_users.worker import UserSearchWorker
+from lina_vendors.worker import VendorSearchWorker
+from lina_core.opensearch import open_client, resolve_config as os_config
+
+caller = CallerContext(
+    user_id="user_jane_smith",
+    roles=frozenset({"legal_ops"}),
+    request_id="req_42",
+)
+
+# Redshift
+rs = RedshiftWorker(connection=psycopg2.connect(os.environ["LINA_REDSHIFT_DSN"]))
+packet = rs.run(
+    query_type="matter_spend_summary",
+    params={"matter_ids": ["matter_acme_v_beta"], "fiscal_periods": ["2024-Q4"]},
+    caller=caller,
+)
+
+# OpenSearch — users
+client = open_client(os_config())
+users = UserSearchWorker(client=client, config=os_config())
+packet = users.run(query_type="user_lookup", params={"user_id": "user_jane_smith"}, caller=caller)
+
+# OpenSearch — vendors
+vendors = VendorSearchWorker(client=client, config=os_config())
+packet = vendors.run(query_type="lawyer_search", params={"query": "privacy"}, caller=caller)
+
+print(packet.model_dump_json(by_alias=True, indent=2))
+```
+
+The supervisor (`lina_supervisor`) wraps these three workers via `WorkerHub` + LangGraph. See [`docs/superpowers/specs/2026-05-02-lina-supervisor-design.md`](./docs/superpowers/specs/2026-05-02-lina-supervisor-design.md) for the full graph and tool schemas.
+
+---
+
+## Templates
+
+14 read-only templates total. Each `query_type` is parameterized by a Pydantic model and gated by a role allow-list. Run `<cli> list-templates` to dump full parameter schemas as JSON.
+
+### Subsystem C — `lina-redshift` (6)
+
+| `query_type` | Backed by | Allowed roles |
+|---|---|---|
+| `matter_lookup` | `vw_matter_current` | any role |
+| `matter_spend_summary` | `mv_matter_spend_summary` | `legal_ops`, `finance`, `matter_owner` |
+| `vendor_spend_summary` | `mv_vendor_spend_summary` | `legal_ops`, `finance` |
+| `timekeeper_rate_analysis` | `mv_timekeeper_rate_analysis` | `legal_ops`, `finance`, `rate_admin` |
+| `invoice_search` | `fact_invoice` | `legal_ops`, `finance`, `matter_owner` |
+| `line_item_detail` | `fact_invoice_line_item` | `legal_ops`, `finance` |
+
+### Subsystem A — `lina-users` (4)
+
+| `query_type` | Backed by | Allowed roles |
+|---|---|---|
+| `user_lookup` | `corp_user_profiles_v1` | any role |
+| `user_search` | `corp_user_profiles_v1` | any role |
+| `manager_chain` | `corp_user_profiles_v1` (multi-hop) | `legal_ops`, `hr_ops` |
+| `people_filter` | `corp_user_profiles_v1` | any role |
+
+### Subsystem B — `lina-vendors` (4)
+
+| `query_type` | Backed by | Allowed roles |
+|---|---|---|
+| `timekeeper_lookup` | `vendor_lawyer_profiles_v1` | any role |
+| `lawyer_search` | `vendor_lawyer_profiles_v1` | any role |
+| `outside_counsel_filter` | `vendor_lawyer_profiles_v1` | `legal_ops`, `finance`, `procurement` |
+| `practice_area_match` | `vendor_lawyer_profiles_v1` | any role |
+
+---
 
 ## Environment variables
 
@@ -142,185 +231,91 @@ Without these env vars set (and without any committed supervisor cassettes),
 | `LINA_REDSHIFT_DSN` | when targeting Redshift | DSN for the Redshift Serverless workgroup |
 | `LINA_POSTGRES_DSN` | when targeting Postgres locally | DSN for local Postgres |
 | `LINA_STATEMENT_TIMEOUT_MS` | no (default 30000) | Per-query timeout |
-| `LINA_LOG_FORMAT` | no (default `console`) | `json` for production, `console` for dev |
+| `LINA_LOG_FORMAT` | no (default `console`) | `json` for prod, `console` for dev |
 | `LINA_EXPLAIN_BEFORE_EXEC` | no | When `1`, runs `EXPLAIN` before every query and logs the plan |
 
-### OpenSearch (Subsystems A and B)
-
-Both `lina-users` and `lina-vendors` share one set of OpenSearch env vars.
+### OpenSearch (Subsystems A + B share one set)
 
 | Variable | Required | Purpose |
 |---|---|---|
-| `LINA_OPENSEARCH_HOST` | when targeting OpenSearch | Cluster endpoint (e.g. `https://search-....es.amazonaws.com`) |
+| `LINA_OPENSEARCH_HOST` | when targeting OpenSearch | Cluster endpoint |
 | `LINA_OPENSEARCH_AUTH` | no (default `basic`) | One of `basic`, `aws_sigv4`, `none` |
-| `LINA_OPENSEARCH_USER` | when `auth=basic` | HTTP basic username |
-| `LINA_OPENSEARCH_PASSWORD` | when `auth=basic` | HTTP basic password |
-| `LINA_AWS_REGION` | when `auth=aws_sigv4` | Region used by SigV4 signing for AWS OpenSearch |
+| `LINA_OPENSEARCH_USER` / `LINA_OPENSEARCH_PASSWORD` | when `auth=basic` | HTTP basic credentials |
+| `LINA_AWS_REGION` | when `auth=aws_sigv4` | Region for SigV4 signing |
 | `LINA_OPENSEARCH_REQUEST_TIMEOUT_SECONDS` | no (default 30) | Per-request timeout |
 
 ### Supervisor (Subsystem D — `lina-chat`)
 
 | Variable | Required | Purpose |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | yes | API key for the Claude model the supervisor routes through |
-| `LINA_SUPERVISOR_MODEL` | no (default `claude-sonnet-4-7`) | Override the Claude model name |
-| `LINA_SUPERVISOR_MAX_WORKER_CALLS` | no (default 8) | Hard cap on worker tool calls per user turn |
-| `LINA_SUPERVISOR_ROUTE_MAX_TOKENS` | no (default 2048) | `max_tokens` for the routing pass |
-| `LINA_SUPERVISOR_SYNTHESIZE_MAX_TOKENS` | no (default 4096) | `max_tokens` for the synthesizer pass |
-| `LINA_SUPERVISOR_REQUEST_TIMEOUT_SECONDS` | no (default 60) | Per-request timeout for Anthropic calls |
+| `ANTHROPIC_API_KEY` | yes | Anthropic API key |
+| `LINA_SUPERVISOR_MODEL` | no (default `claude-sonnet-4-7`) | Override the Claude model |
+| `LINA_SUPERVISOR_MAX_WORKER_CALLS` | no (default 8) | Hard cap on worker calls per user turn |
+| `LINA_SUPERVISOR_ROUTE_MAX_TOKENS` | no (default 2048) | Token cap for routing pass |
+| `LINA_SUPERVISOR_SYNTHESIZE_MAX_TOKENS` | no (default 4096) | Token cap for synthesis pass |
+| `LINA_SUPERVISOR_REQUEST_TIMEOUT_SECONDS` | no (default 60) | Per-request timeout for Anthropic |
 
-The supervisor reuses the Redshift and OpenSearch env vars above to construct
-its workers; any worker whose env vars are unset is omitted from the tool
-catalog rather than failing the run.
+The supervisor reuses the Redshift and OpenSearch env vars above; any worker whose env vars are unset is omitted from the tool catalog rather than failing the run.
 
-## Library API
-
-### `RedshiftWorker`
-
-```python
-import os
-import psycopg2
-from lina_redshift.worker import RedshiftWorker
-from lina_core.caller import CallerContext
-
-conn = psycopg2.connect(os.environ["LINA_REDSHIFT_DSN"])
-worker = RedshiftWorker(connection=conn)
-
-caller = CallerContext(
-    user_id="user_jane_smith",
-    roles=frozenset({"legal_ops"}),
-    request_id="req_42",
-)
-
-packet = worker.run(
-    query_type="matter_spend_summary",
-    params={"matter_ids": ["matter_acme_v_beta"], "fiscal_periods": ["2024-Q4"]},
-    caller=caller,
-)
-print(packet.model_dump_json(by_alias=True, indent=2))
-```
-
-### `UserSearchWorker`
-
-```python
-from lina_core.caller import CallerContext
-from lina_users.connection import open_client, resolve_config
-from lina_users.worker import UserSearchWorker
-
-config = resolve_config()
-client = open_client(config)
-worker = UserSearchWorker(client=client, config=config)
-
-caller = CallerContext(
-    user_id="user_jane_smith",
-    roles=frozenset({"legal_ops"}),
-    request_id="req_42",
-)
-
-packet = worker.run(
-    query_type="user_lookup",
-    params={"user_id": "user_jane_smith"},
-    caller=caller,
-)
-print(packet.model_dump_json(by_alias=True, indent=2))
-```
-
-### `VendorSearchWorker`
-
-```python
-from lina_core.caller import CallerContext
-from lina_vendors.connection import open_client, resolve_config
-from lina_vendors.worker import VendorSearchWorker
-
-config = resolve_config()
-client = open_client(config)
-worker = VendorSearchWorker(client=client, config=config)
-
-caller = CallerContext(
-    user_id="user_jane_smith",
-    roles=frozenset({"legal_ops"}),
-    request_id="req_42",
-)
-
-packet = worker.run(
-    query_type="lawyer_search",
-    params={"query": "privacy", "practice_areas": ["Privacy"]},
-    caller=caller,
-)
-print(packet.model_dump_json(by_alias=True, indent=2))
-```
-
-## Templates
-
-LINA exposes 14 read-only templates across the three workers. Each `query_type`
-is parameterized by a Pydantic model and gated by a role allow-list. Run
-`lina-redshift list-templates`, `lina-users list-templates`, or
-`lina-vendors list-templates` to dump the full parameter schema.
-
-### Subsystem C (`lina-redshift`) — 6 templates
-
-| `query_type` | Backed by | Allowed roles |
-|---|---|---|
-| `matter_lookup` | `vw_matter_current` | any caller with at least one role |
-| `matter_spend_summary` | `mv_matter_spend_summary` | `legal_ops`, `finance`, `matter_owner` |
-| `vendor_spend_summary` | `mv_vendor_spend_summary` | `legal_ops`, `finance` |
-| `timekeeper_rate_analysis` | `mv_timekeeper_rate_analysis` | `legal_ops`, `finance`, `rate_admin` |
-| `invoice_search` | `fact_invoice` | `legal_ops`, `finance`, `matter_owner` |
-| `line_item_detail` | `fact_invoice_line_item` | `legal_ops`, `finance` |
-
-### Subsystem A (`lina-users`) — 4 templates
-
-| `query_type` | Backed by | Allowed roles |
-|---|---|---|
-| `user_lookup` | `corp_user_profiles_v1` | any caller with at least one role |
-| `user_search` | `corp_user_profiles_v1` | any caller with at least one role |
-| `manager_chain` | `corp_user_profiles_v1` (multi-hop) | `legal_ops`, `hr_ops` |
-| `people_filter` | `corp_user_profiles_v1` | any caller with at least one role |
-
-### Subsystem B (`lina-vendors`) — 4 templates
-
-| `query_type` | Backed by | Allowed roles |
-|---|---|---|
-| `timekeeper_lookup` | `vendor_lawyer_profiles_v1` | any caller with at least one role |
-| `lawyer_search` | `vendor_lawyer_profiles_v1` | any caller with at least one role |
-| `outside_counsel_filter` | `vendor_lawyer_profiles_v1` | `legal_ops`, `finance`, `procurement` |
-| `practice_area_match` | `vendor_lawyer_profiles_v1` | any caller with at least one role |
+---
 
 ## Cross-subsystem ID parity
 
-Named seeds across A, B, and C share fixed IDs so end-to-end golden-path tests
-that span subsystems can resolve cleanly:
+Named seeds across A, B, and C share fixed IDs so end-to-end golden-path tests that span subsystems resolve cleanly:
 
-- **A ↔ C:** `lina_users` named users (`user_jane_smith`, `user_alex_lee`, ...) match the `matter_owner_user_id` values referenced by `lina_redshift.seed.named_entities`.
-- **B ↔ C:** `lina_vendors` named timekeepers (`tk_walker_partner`, `tk_walker_associate`, `tk_jones_partner`, `tk_meridian_partner`, `tk_meridian_paralegal`) match the `dim_timekeeper` named entries in C, and the `vendor_*` IDs match `dim_vendor` entries.
+- **A ↔ C** — `lina_users` named users (`user_jane_smith`, `user_alex_lee`, …) match the `matter_owner_user_id` values referenced by `lina_redshift.seed.named_entities`.
+- **B ↔ C** — `lina_vendors` named timekeepers (`tk_walker_partner`, `tk_walker_associate`, `tk_jones_partner`, `tk_meridian_partner`, `tk_meridian_paralegal`) match the `dim_timekeeper` named entries in C, and the `vendor_*` IDs match `dim_vendor` entries.
 
-Generated (bulk-seeded) test data in each subsystem uses a disjoint ID prefix
-so the named-seed surface is never overwritten.
+Generated (bulk-seeded) test data in each subsystem uses a disjoint ID prefix so the named-seed surface is never overwritten.
 
-## Final sweep
+---
+
+## Quality gates
 
 ```bash
-pytest -v
-mypy
-ruff check src tests
-ruff format --check src tests
-coverage report
+pytest -v                          # unit suite
+mypy                               # strict type-check across all four subsystems
+ruff check src tests               # lint
+ruff format --check src tests      # formatting
+coverage report --fail-under=80    # coverage gate
 ```
+
+CI-ready snapshot: 303 unit tests passing, ≥91% coverage on `src/lina_redshift/`, mypy/ruff/format clean across 154 source files.
+
+---
 
 ## Out of scope (deferred follow-ups)
 
 See §11/§12 of each design doc. Highlights:
 
-- IAM auth, AWS Secrets Manager, IaC (Terraform)
+- IAM auth, AWS Secrets Manager, IaC (Terraform / CDK)
 - Real ingestion pipelines (LEDES parsing, OpenSearch ingest, S3 → Redshift COPY)
 - Row-level + column-level filtering beyond template role gates
 - Custom fiscal calendars, FX rate service integration
 - Persistent supervisor session storage (current `InMemorySessionStore` is per-process)
+- FastAPI / HTTP service deployment of `lina-chat`
+- AWS Bedrock as an alternative to direct Anthropic API
+- Hybrid retrieval (kNN on `profile_embedding` is reserved in the OpenSearch mappings)
+
+---
 
 ## Project layout
 
-See:
+```text
+lina/
+├── lina.md                              # source data contract
+├── docs/superpowers/
+│   ├── specs/                           # 3 design docs, one per subsystem cycle
+│   └── plans/                           # 3 implementation plans
+├── src/
+│   ├── lina_core/                       # shared: CallerContext, ResultPacket, opensearch, logging
+│   ├── lina_redshift/                   # Subsystem C — Redshift worker + CLI + seed + 18 migrations
+│   ├── lina_users/                      # Subsystem A — OpenSearch corp users
+│   ├── lina_vendors/                    # Subsystem B — OpenSearch vendor lawyers
+│   └── lina_supervisor/                 # Subsystem D — LangGraph supervisor
+└── tests/
+    ├── unit/                            # 303 hermetic tests
+    └── integration/                     # 18 staged tests (Redshift + OpenSearch + Anthropic VCR)
+```
 
-- [`docs/superpowers/specs/2026-05-02-lina-redshift-worker-design.md`](./docs/superpowers/specs/2026-05-02-lina-redshift-worker-design.md) §3
-- [`docs/superpowers/specs/2026-05-02-lina-opensearch-workers-design.md`](./docs/superpowers/specs/2026-05-02-lina-opensearch-workers-design.md) §3
-- [`docs/superpowers/specs/2026-05-02-lina-supervisor-design.md`](./docs/superpowers/specs/2026-05-02-lina-supervisor-design.md) §3
+Per-subsystem layout details live in §3 of each design doc.

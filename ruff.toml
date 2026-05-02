@@ -1,0 +1,9 @@
+target-version = "py312"
+line-length = 100
+
+[lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "SIM", "C4", "PTH", "RET", "ARG"]
+ignore = ["E501"]  # line length handled by formatter
+
+[lint.per-file-ignores]
+"tests/**" = ["ARG"]

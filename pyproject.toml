@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lina-redshift"
+version = "0.1.0"
+description = "LINA — Redshift matter & spend worker (Subsystem C)"
+requires-python = ">=3.12"
+dependencies = [
+    "psycopg2-binary>=2.9.9",
+    "pydantic>=2.6",
+    "sqlglot>=23.0",
+    "python-ulid>=2.2",
+    "structlog>=24.1",
+    "click>=8.1",
+    "Faker>=24.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.1",
+    "pytest-postgresql>=5.1",
+    "psycopg[binary]>=3.1",
+    "mypy>=1.9",
+    "ruff>=0.3",
+    "coverage[toml]>=7.4",
+]
+
+[project.scripts]
+lina-redshift = "lina_redshift.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+lina_redshift = ["migrations/sql/*.sql"]
+
+[tool.coverage.run]
+source = ["src/lina_redshift"]
+branch = true

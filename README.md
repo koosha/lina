@@ -10,11 +10,13 @@ contract: [`lina.md`](./lina.md).
 | C | `RedshiftWorker` (`lina-redshift`) | Amazon Redshift Serverless (Postgres locally for tests) | `legal_matter_spend` |
 | A | `UserSearchWorker` (`lina-users`) | Amazon OpenSearch | `corp_user_profiles_v1` |
 | B | `VendorSearchWorker` (`lina-vendors`) | Amazon OpenSearch | `vendor_lawyer_profiles_v1` |
+| D | `lina-chat` supervisor (LangGraph + Anthropic) | the three workers above | — |
 
 Design contracts:
 
 - C: [`docs/superpowers/specs/2026-05-02-lina-redshift-worker-design.md`](./docs/superpowers/specs/2026-05-02-lina-redshift-worker-design.md)
 - A + B: [`docs/superpowers/specs/2026-05-02-lina-opensearch-workers-design.md`](./docs/superpowers/specs/2026-05-02-lina-opensearch-workers-design.md)
+- D: [`docs/superpowers/specs/2026-05-02-lina-supervisor-design.md`](./docs/superpowers/specs/2026-05-02-lina-supervisor-design.md)
 
 ## Quickstart
 
@@ -80,6 +82,30 @@ lina-vendors run timekeeper_lookup \
     --user-id user_jane_smith --caller-roles legal_ops
 ```
 
+#### Subsystem D — `lina-chat` supervisor
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+export LINA_REDSHIFT_DSN=postgresql://user:pass@workgroup-host:5439/dev
+export LINA_OPENSEARCH_HOST=https://search-...es.amazonaws.com
+export LINA_OPENSEARCH_AUTH=aws_sigv4
+export LINA_AWS_REGION=us-east-1
+
+lina-chat ask --user-id user_jane_smith \
+    --query "How much did Walker bill on Acme last quarter?"
+
+# Multi-turn REPL
+lina-chat repl --user-id user_jane_smith
+```
+
+`lina-chat` lazily detects which workers are reachable and only exposes the
+matching tools to the LLM, so it stays usable when only Redshift or only
+OpenSearch is configured.
+
+##### How the supervisor works
+
+The supervisor is a three-node LangGraph state machine — `route` → `execute_tools` → (loop back to `route` or fall through to) `synthesize`. `route` calls Claude with the three worker tools (`query_redshift`, `search_users`, `search_vendors`); `execute_tools` dispatches each `tool_use` block via the `WorkerHub`, appends the typed `ResultPacket` as a `tool_result` block, and increments a per-turn worker-call counter. When the counter hits `LINA_SUPERVISOR_MAX_WORKER_CALLS` (default 8) the loop falls through to `synthesize`, which streams a final answer with the data already gathered. See [§5 of the supervisor design doc](./docs/superpowers/specs/2026-05-02-lina-supervisor-design.md#5-graph-topology-langgraph) for the full graph diagram.
+
 ### 4. Run integration tests against real backends
 
 ```bash
@@ -96,9 +122,16 @@ export LINA_AWS_REGION=us-east-1
 lina-users indices apply && lina-users seed
 lina-vendors indices apply && lina-vendors seed
 pytest -m integration tests/integration/lina_users tests/integration/lina_vendors -v
+
+# Supervisor smoke tests (2 tests, VCR-replayed) — require either a recorded
+# YAML cassette in tests/integration/lina_supervisor/cassettes/ or a live
+# ANTHROPIC_API_KEY. See tests/integration/lina_supervisor/README.md for the
+# recording workflow.
+pytest -m integration tests/integration/lina_supervisor -v
 ```
 
-Without these env vars set, `pytest -m integration` collects 16 tests and skips all of them.
+Without these env vars set (and without any committed supervisor cassettes),
+`pytest -m integration` collects 18 tests and skips all of them.
 
 ## Environment variables
 
@@ -124,6 +157,21 @@ Both `lina-users` and `lina-vendors` share one set of OpenSearch env vars.
 | `LINA_OPENSEARCH_PASSWORD` | when `auth=basic` | HTTP basic password |
 | `LINA_AWS_REGION` | when `auth=aws_sigv4` | Region used by SigV4 signing for AWS OpenSearch |
 | `LINA_OPENSEARCH_REQUEST_TIMEOUT_SECONDS` | no (default 30) | Per-request timeout |
+
+### Supervisor (Subsystem D — `lina-chat`)
+
+| Variable | Required | Purpose |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | yes | API key for the Claude model the supervisor routes through |
+| `LINA_SUPERVISOR_MODEL` | no (default `claude-sonnet-4-7`) | Override the Claude model name |
+| `LINA_SUPERVISOR_MAX_WORKER_CALLS` | no (default 8) | Hard cap on worker tool calls per user turn |
+| `LINA_SUPERVISOR_ROUTE_MAX_TOKENS` | no (default 2048) | `max_tokens` for the routing pass |
+| `LINA_SUPERVISOR_SYNTHESIZE_MAX_TOKENS` | no (default 4096) | `max_tokens` for the synthesizer pass |
+| `LINA_SUPERVISOR_REQUEST_TIMEOUT_SECONDS` | no (default 60) | Per-request timeout for Anthropic calls |
+
+The supervisor reuses the Redshift and OpenSearch env vars above to construct
+its workers; any worker whose env vars are unset is omitted from the tool
+catalog rather than failing the run.
 
 ## Library API
 
@@ -261,13 +309,13 @@ coverage report
 
 ## Out of scope (deferred follow-ups)
 
-See §11 of each design doc. Highlights:
+See §11/§12 of each design doc. Highlights:
 
-- Subsystem D (supervisor / planner)
 - IAM auth, AWS Secrets Manager, IaC (Terraform)
 - Real ingestion pipelines (LEDES parsing, OpenSearch ingest, S3 → Redshift COPY)
 - Row-level + column-level filtering beyond template role gates
 - Custom fiscal calendars, FX rate service integration
+- Persistent supervisor session storage (current `InMemorySessionStore` is per-process)
 
 ## Project layout
 
@@ -275,3 +323,4 @@ See:
 
 - [`docs/superpowers/specs/2026-05-02-lina-redshift-worker-design.md`](./docs/superpowers/specs/2026-05-02-lina-redshift-worker-design.md) §3
 - [`docs/superpowers/specs/2026-05-02-lina-opensearch-workers-design.md`](./docs/superpowers/specs/2026-05-02-lina-opensearch-workers-design.md) §3
+- [`docs/superpowers/specs/2026-05-02-lina-supervisor-design.md`](./docs/superpowers/specs/2026-05-02-lina-supervisor-design.md) §3

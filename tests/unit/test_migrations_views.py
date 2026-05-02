@@ -35,8 +35,22 @@ def test_vw_matter_current_filters_archived(applied: PgConnection) -> None:
             "matter_status, matter_type, open_date, created_at, updated_at, source_system) "
             "VALUES (%s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, %s), "
             "(%s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, %s)",
-            ("m_open", "CM-1", "Open Matter", "open", "litigation", "2024-01-01", "test",
-             "m_archived", "CM-2", "Archived", "archived", "advisory", "2020-01-01", "test"),
+            (
+                "m_open",
+                "CM-1",
+                "Open Matter",
+                "open",
+                "litigation",
+                "2024-01-01",
+                "test",
+                "m_archived",
+                "CM-2",
+                "Archived",
+                "archived",
+                "advisory",
+                "2020-01-01",
+                "test",
+            ),
         )
         applied.commit()
         cur.execute("SELECT matter_id FROM vw_matter_current ORDER BY matter_id")
@@ -50,9 +64,7 @@ def test_vw_matter_current_filters_archived(applied: PgConnection) -> None:
 )
 def test_materialized_view_exists(applied: PgConnection, mv_name: str) -> None:
     with applied.cursor() as cur:
-        cur.execute(
-            "SELECT count(*) FROM pg_matviews WHERE matviewname = %s", (mv_name,)
-        )
+        cur.execute("SELECT count(*) FROM pg_matviews WHERE matviewname = %s", (mv_name,))
         assert cur.fetchone()[0] == 1
 
 
@@ -69,9 +81,20 @@ def test_mv_matter_spend_summary_columns(applied: PgConnection) -> None:
         )
         cols = {r[0] for r in cur.fetchall()}
     expected = {
-        "matter_id", "fiscal_period", "total_billed_amount", "total_approved_amount",
-        "total_paid_amount", "fee_amount", "expense_amount", "tax_amount",
-        "adjustment_amount", "invoice_count", "vendor_count", "timekeeper_count",
-        "budget_amount", "budget_remaining", "budget_utilization_percent",
+        "matter_id",
+        "fiscal_period",
+        "total_billed_amount",
+        "total_approved_amount",
+        "total_paid_amount",
+        "fee_amount",
+        "expense_amount",
+        "tax_amount",
+        "adjustment_amount",
+        "invoice_count",
+        "vendor_count",
+        "timekeeper_count",
+        "budget_amount",
+        "budget_remaining",
+        "budget_utilization_percent",
     }
     assert expected <= cols

@@ -28,8 +28,12 @@ def test_list_templates(pg_dsn: str, monkeypatch: pytest.MonkeyPatch) -> None:
     payload = json.loads(result.output)
     types = {t["query_type"] for t in payload}
     assert types == {
-        "matter_lookup", "matter_spend_summary", "vendor_spend_summary",
-        "timekeeper_rate_analysis", "invoice_search", "line_item_detail",
+        "matter_lookup",
+        "matter_spend_summary",
+        "vendor_spend_summary",
+        "timekeeper_rate_analysis",
+        "invoice_search",
+        "line_item_detail",
     }
 
 
@@ -38,11 +42,21 @@ def test_run_matter_lookup(pg_dsn: str, monkeypatch: pytest.MonkeyPatch) -> None
     _bootstrap(pg_dsn, monkeypatch)
     runner = CliRunner()
 
-    result = runner.invoke(main, [
-        "--target", "postgres", "run", "matter_lookup",
-        "--params", '{"matter_id": "matter_acme_v_beta"}',
-        "--user-id", "user_jane", "--caller-roles", "legal_ops",
-    ])
+    result = runner.invoke(
+        main,
+        [
+            "--target",
+            "postgres",
+            "run",
+            "matter_lookup",
+            "--params",
+            '{"matter_id": "matter_acme_v_beta"}',
+            "--user-id",
+            "user_jane",
+            "--caller-roles",
+            "legal_ops",
+        ],
+    )
 
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
@@ -52,16 +66,27 @@ def test_run_matter_lookup(pg_dsn: str, monkeypatch: pytest.MonkeyPatch) -> None
 
 @pytest.mark.unit
 def test_run_returns_error_packet_for_unauthorized(
-    pg_dsn: str, monkeypatch: pytest.MonkeyPatch,
+    pg_dsn: str,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _bootstrap(pg_dsn, monkeypatch)
     runner = CliRunner()
 
-    result = runner.invoke(main, [
-        "--target", "postgres", "run", "matter_spend_summary",
-        "--params", "{}",
-        "--user-id", "user_x", "--caller-roles", "random",
-    ])
+    result = runner.invoke(
+        main,
+        [
+            "--target",
+            "postgres",
+            "run",
+            "matter_spend_summary",
+            "--params",
+            "{}",
+            "--user-id",
+            "user_x",
+            "--caller-roles",
+            "random",
+        ],
+    )
 
     assert result.exit_code == 0  # CLI returns 0 even for error packets; payload conveys
     payload = json.loads(result.stdout)
@@ -70,15 +95,23 @@ def test_run_returns_error_packet_for_unauthorized(
 
 @pytest.mark.unit
 def test_explain_renders_sql_without_executing(
-    pg_dsn: str, monkeypatch: pytest.MonkeyPatch,
+    pg_dsn: str,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _bootstrap(pg_dsn, monkeypatch)
     runner = CliRunner()
 
-    result = runner.invoke(main, [
-        "--target", "postgres", "explain", "matter_lookup",
-        "--params", '{"matter_id": "matter_acme_v_beta"}',
-    ])
+    result = runner.invoke(
+        main,
+        [
+            "--target",
+            "postgres",
+            "explain",
+            "matter_lookup",
+            "--params",
+            '{"matter_id": "matter_acme_v_beta"}',
+        ],
+    )
 
     assert result.exit_code == 0
     payload = json.loads(result.stdout)

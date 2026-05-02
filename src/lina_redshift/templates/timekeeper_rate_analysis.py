@@ -8,11 +8,19 @@ from pydantic import BaseModel
 
 from lina_redshift.templates.base import QueryTemplate
 
-_ALLOWED_OUTPUT_COLUMNS: frozenset[str] = frozenset({
-    "timekeeper_id", "vendor_id", "fiscal_period",
-    "billed_hours", "billed_amount", "average_billed_rate",
-    "approved_rate", "rate_variance_amount", "rate_variance_percent",
-})
+_ALLOWED_OUTPUT_COLUMNS: frozenset[str] = frozenset(
+    {
+        "timekeeper_id",
+        "vendor_id",
+        "fiscal_period",
+        "billed_hours",
+        "billed_amount",
+        "average_billed_rate",
+        "approved_rate",
+        "rate_variance_amount",
+        "rate_variance_percent",
+    }
+)
 
 
 class TimekeeperRateAnalysisParams(BaseModel):
@@ -27,9 +35,7 @@ class TimekeeperRateAnalysisParams(BaseModel):
 
 class TimekeeperRateAnalysisTemplate(QueryTemplate):
     query_type: ClassVar[str] = "timekeeper_rate_analysis"
-    allowed_roles: ClassVar[frozenset[str]] = frozenset(
-        {"legal_ops", "finance", "rate_admin"}
-    )
+    allowed_roles: ClassVar[frozenset[str]] = frozenset({"legal_ops", "finance", "rate_admin"})
     Params: ClassVar[type[BaseModel]] = TimekeeperRateAnalysisParams
     default_limit: ClassVar[int] = 500
     max_limit: ClassVar[int] = 5_000
@@ -63,7 +69,4 @@ class TimekeeperRateAnalysisTemplate(QueryTemplate):
         return sql, binds
 
     def shape_packet(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        return [
-            {k: v for k, v in row.items() if k in _ALLOWED_OUTPUT_COLUMNS}
-            for row in rows
-        ]
+        return [{k: v for k, v in row.items() if k in _ALLOWED_OUTPUT_COLUMNS} for row in rows]

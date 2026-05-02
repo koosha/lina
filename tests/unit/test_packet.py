@@ -73,7 +73,8 @@ def test_error_packet_shape() -> None:
     ],
 )
 def test_error_packet_maps_each_exception_type(
-    exc: Exception, expected_type: str,
+    exc: Exception,
+    expected_type: str,
 ) -> None:
     err = ErrorPacket.from_exception(exc, sql_trace_id="t", result_type="x")
     assert err.error.type == expected_type

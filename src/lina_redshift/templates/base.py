@@ -10,21 +10,35 @@ import sqlglot
 from pydantic import BaseModel
 from sqlglot import ErrorLevel, TokenType, exp
 
-APPROVED_RELATIONS: frozenset[str] = frozenset({
-    "vw_matter_current",
-    "mv_matter_spend_summary",
-    "mv_vendor_spend_summary",
-    "mv_timekeeper_rate_analysis",
-    "fact_invoice",
-    "fact_invoice_line_item",
-})
+APPROVED_RELATIONS: frozenset[str] = frozenset(
+    {
+        "vw_matter_current",
+        "mv_matter_spend_summary",
+        "mv_vendor_spend_summary",
+        "mv_timekeeper_rate_analysis",
+        "fact_invoice",
+        "fact_invoice_line_item",
+    }
+)
 
-ALLOWED_FUNCTIONS: frozenset[str] = frozenset({
-    "sum", "count", "avg", "min", "max",
-    "coalesce", "nullif",
-    "to_char", "date_trunc", "extract",
-    "abs", "round", "greatest", "least",
-})
+ALLOWED_FUNCTIONS: frozenset[str] = frozenset(
+    {
+        "sum",
+        "count",
+        "avg",
+        "min",
+        "max",
+        "coalesce",
+        "nullif",
+        "to_char",
+        "date_trunc",
+        "extract",
+        "abs",
+        "round",
+        "greatest",
+        "least",
+    }
+)
 
 
 class TemplateValidationError(RuntimeError):
@@ -73,18 +87,14 @@ def validate_template_sql(sql: str) -> None:
     # Rule 10/11/12: regex-level token sanity check before parsing.
     banned = _BANNED_TOKEN_RE.search(sql)
     if banned:
-        raise TemplateValidationError(
-            f"SQL contains banned token {banned.group(0)!r}: {sql!r}"
-        )
+        raise TemplateValidationError(f"SQL contains banned token {banned.group(0)!r}: {sql!r}")
 
     # Rule 13 (token-level): every function call must be in ALLOWED_FUNCTIONS.
     # Performed pre-parse because sqlglot's strict mode rejects some
     # single-argument forms (to_char, date_trunc, ...) we still want to allow.
     for fn_name in _extract_function_calls(sql):
         if fn_name not in ALLOWED_FUNCTIONS:
-            raise TemplateValidationError(
-                f"function {fn_name!r} is not in ALLOWED_FUNCTIONS"
-            )
+            raise TemplateValidationError(f"function {fn_name!r} is not in ALLOWED_FUNCTIONS")
 
     # Parse with Redshift dialect; IGNORE level so single-arg forms parse.
     try:
@@ -97,17 +107,13 @@ def validate_template_sql(sql: str) -> None:
 
     # Rule 1: must be a SELECT.
     if not isinstance(tree, exp.Select):
-        raise TemplateValidationError(
-            f"only SELECT statements are allowed; got {tree.key}"
-        )
+        raise TemplateValidationError(f"only SELECT statements are allowed; got {tree.key}")
 
     # Rule 2: every referenced table must be in APPROVED_RELATIONS.
     for table in tree.find_all(exp.Table):
         name = table.name
         if name not in APPROVED_RELATIONS:
-            raise TemplateValidationError(
-                f"relation {name!r} is not in APPROVED_RELATIONS"
-            )
+            raise TemplateValidationError(f"relation {name!r} is not in APPROVED_RELATIONS")
 
     # Rule 5: no FROM-clause joins in template SQL (joins live inside MVs).
     for join in tree.find_all(exp.Join):

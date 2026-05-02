@@ -54,9 +54,7 @@ def test_each_table_exists_in_redshift(redshift_conn: PgConnection) -> None:
     ]
     with redshift_conn.cursor() as cur:
         for table in expected:
-            cur.execute(
-                "SELECT count(*) FROM pg_table_def WHERE tablename = %s", (table,)
-            )
+            cur.execute("SELECT count(*) FROM pg_table_def WHERE tablename = %s", (table,))
             row = cur.fetchone()
             assert row is not None
             assert row[0] > 0, f"table {table} not present in Redshift"
@@ -76,9 +74,7 @@ def test_views_and_mvs_exist_in_redshift(redshift_conn: PgConnection) -> None:
             "mv_vendor_spend_summary",
             "mv_timekeeper_rate_analysis",
         ]:
-            cur.execute(
-                "SELECT count(*) FROM stv_mv_info WHERE name = %s", (mv,)
-            )
+            cur.execute("SELECT count(*) FROM stv_mv_info WHERE name = %s", (mv,))
             row = cur.fetchone()
             assert row is not None
             assert row[0] == 1, f"materialized view {mv} not present"

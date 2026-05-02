@@ -8,12 +8,25 @@ from pydantic import BaseModel, model_validator
 
 from lina_redshift.templates.base import QueryTemplate
 
-_ALLOWED_OUTPUT_COLUMNS: frozenset[str] = frozenset({
-    "matter_id", "client_matter_id", "matter_name", "matter_status",
-    "matter_type", "practice_area", "area_of_law_code", "open_date",
-    "close_date", "matter_owner_user_id", "lead_inhouse_counsel_user_id",
-    "business_unit", "cost_center_id", "budget_amount", "budget_currency_code",
-})
+_ALLOWED_OUTPUT_COLUMNS: frozenset[str] = frozenset(
+    {
+        "matter_id",
+        "client_matter_id",
+        "matter_name",
+        "matter_status",
+        "matter_type",
+        "practice_area",
+        "area_of_law_code",
+        "open_date",
+        "close_date",
+        "matter_owner_user_id",
+        "lead_inhouse_counsel_user_id",
+        "business_unit",
+        "cost_center_id",
+        "budget_amount",
+        "budget_currency_code",
+    }
+)
 
 
 class MatterLookupParams(BaseModel):
@@ -28,7 +41,8 @@ class MatterLookupParams(BaseModel):
     @model_validator(mode="after")
     def _exactly_one_lookup(self) -> MatterLookupParams:
         provided = [
-            v for v in (self.matter_id, self.client_matter_id, self.matter_owner_user_id)
+            v
+            for v in (self.matter_id, self.client_matter_id, self.matter_owner_user_id)
             if v is not None
         ]
         if len(provided) != 1:
@@ -74,7 +88,4 @@ class MatterLookupTemplate(QueryTemplate):
         return sql, binds
 
     def shape_packet(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        return [
-            {k: v for k, v in row.items() if k in _ALLOWED_OUTPUT_COLUMNS}
-            for row in rows
-        ]
+        return [{k: v for k, v in row.items() if k in _ALLOWED_OUTPUT_COLUMNS} for row in rows]

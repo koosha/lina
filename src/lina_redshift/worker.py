@@ -51,7 +51,9 @@ class RedshiftWorker:
         except UnknownTemplateError as exc:
             log.warning("unknown_template", outcome=type(exc).__name__)
             return ErrorPacket.from_exception(
-                exc, sql_trace_id=sql_trace_id, result_type=query_type,
+                exc,
+                sql_trace_id=sql_trace_id,
+                result_type=query_type,
             )
 
         log = bind_call_context(
@@ -70,7 +72,9 @@ class RedshiftWorker:
             )
             log.warning("authorization_failed", outcome="AuthorizationError")
             return ErrorPacket.from_exception(
-                auth_exc, sql_trace_id=sql_trace_id, result_type=query_type,
+                auth_exc,
+                sql_trace_id=sql_trace_id,
+                result_type=query_type,
             )
 
         try:
@@ -79,7 +83,9 @@ class RedshiftWorker:
             wrapped = InvalidParametersError(str(exc))
             log.warning("invalid_parameters", outcome="InvalidParametersError")
             return ErrorPacket.from_exception(
-                wrapped, sql_trace_id=sql_trace_id, result_type=query_type,
+                wrapped,
+                sql_trace_id=sql_trace_id,
+                result_type=query_type,
             )
 
         try:
@@ -88,7 +94,8 @@ class RedshiftWorker:
             log.error("build_sql_failed", outcome="WorkerInternalError", exc_info=exc)
             return ErrorPacket.from_exception(
                 WorkerInternalError(str(exc)),
-                sql_trace_id=sql_trace_id, result_type=query_type,
+                sql_trace_id=sql_trace_id,
+                result_type=query_type,
             )
 
         start = time.perf_counter()
@@ -97,7 +104,9 @@ class RedshiftWorker:
         except WorkerError as exc:
             log.warning("query_failed", outcome=type(exc).__name__)
             return ErrorPacket.from_exception(
-                exc, sql_trace_id=sql_trace_id, result_type=query_type,
+                exc,
+                sql_trace_id=sql_trace_id,
+                result_type=query_type,
             )
 
         duration_ms = int((time.perf_counter() - start) * 1000)

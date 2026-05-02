@@ -39,12 +39,10 @@ def test_bridge_matter_vendor_composite_key(applied: PgConnection) -> None:
         cur.execute(
             "INSERT INTO bridge_matter_vendor (matter_id, vendor_id, vendor_role, active_flag) "
             "VALUES (%s, %s, %s, %s), (%s, %s, %s, %s)",
-            ("m1", "v1", "primary_counsel", True,
-             "m1", "v1", "local_counsel", True),
+            ("m1", "v1", "primary_counsel", True, "m1", "v1", "local_counsel", True),
         )
         cur.execute(
-            "SELECT count(*) FROM bridge_matter_vendor "
-            "WHERE matter_id='m1' AND vendor_id='v1'"
+            "SELECT count(*) FROM bridge_matter_vendor WHERE matter_id='m1' AND vendor_id='v1'"
         )
         assert cur.fetchone()[0] == 2
 
@@ -59,8 +57,13 @@ def test_bridge_matter_person_columns(applied: PgConnection) -> None:
 def test_bridge_matter_allocation_columns(applied: PgConnection) -> None:
     cols = _columns(applied, "bridge_matter_allocation")
     expected = {
-        "matter_id", "legal_entity_id", "cost_center_id", "gl_account",
-        "allocation_percentage", "effective_start_date", "effective_end_date",
+        "matter_id",
+        "legal_entity_id",
+        "cost_center_id",
+        "gl_account",
+        "allocation_percentage",
+        "effective_start_date",
+        "effective_end_date",
         "active_flag",
     }
     assert expected <= cols
@@ -78,7 +81,6 @@ def test_bridge_matter_allocation_decimal_precision(applied: PgConnection) -> No
             ("m1", "le_us", "cc_eng", "GL-1234", "0.333333", "2024-01-01", True),
         )
         cur.execute(
-            "SELECT allocation_percentage FROM bridge_matter_allocation "
-            "WHERE matter_id='m1'"
+            "SELECT allocation_percentage FROM bridge_matter_allocation WHERE matter_id='m1'"
         )
         assert str(cur.fetchone()[0]) == "0.333333"

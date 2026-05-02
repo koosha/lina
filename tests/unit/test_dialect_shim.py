@@ -60,8 +60,20 @@ def test_strips_interleaved_sortkey() -> None:
 @pytest.mark.unit
 @pytest.mark.parametrize(
     "encoding",
-    ["AZ64", "LZO", "ZSTD", "RAW", "BYTEDICT", "DELTA", "MOSTLY8", "MOSTLY16",
-     "MOSTLY32", "RUNLENGTH", "TEXT255", "TEXT32K"],
+    [
+        "AZ64",
+        "LZO",
+        "ZSTD",
+        "RAW",
+        "BYTEDICT",
+        "DELTA",
+        "MOSTLY8",
+        "MOSTLY16",
+        "MOSTLY32",
+        "RUNLENGTH",
+        "TEXT255",
+        "TEXT32K",
+    ],
 )
 def test_strips_column_encode(encoding: str) -> None:
     sql = f"CREATE TABLE t (id varchar ENCODE {encoding});"

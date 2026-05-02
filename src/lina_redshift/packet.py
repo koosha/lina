@@ -10,7 +10,8 @@ from pydantic import BaseModel, Field
 class ResultPacket(BaseModel):
     source_engine: Literal["redshift"] = "redshift"
     schema_name: Literal["legal_matter_spend"] = Field(
-        default="legal_matter_spend", alias="schema",
+        default="legal_matter_spend",
+        alias="schema",
     )
     result_type: str
     metrics: list[dict[str, Any]]
@@ -29,7 +30,8 @@ class _ErrorBody(BaseModel):
 class ErrorPacket(BaseModel):
     source_engine: Literal["redshift"] = "redshift"
     schema_name: Literal["legal_matter_spend"] = Field(
-        default="legal_matter_spend", alias="schema",
+        default="legal_matter_spend",
+        alias="schema",
     )
     result_type: str
     sql_trace_id: str

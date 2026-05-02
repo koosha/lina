@@ -14,8 +14,18 @@ class UnsupportedDialectError(RuntimeError):
 
 
 _ENCODINGS = (
-    "AZ64", "LZO", "ZSTD", "RAW", "BYTEDICT", "DELTA",
-    "MOSTLY8", "MOSTLY16", "MOSTLY32", "RUNLENGTH", "TEXT255", "TEXT32K",
+    "AZ64",
+    "LZO",
+    "ZSTD",
+    "RAW",
+    "BYTEDICT",
+    "DELTA",
+    "MOSTLY8",
+    "MOSTLY16",
+    "MOSTLY32",
+    "RUNLENGTH",
+    "TEXT255",
+    "TEXT32K",
 )
 _ENCODE_RE = re.compile(
     r"\s+ENCODE\s+(?:" + "|".join(_ENCODINGS) + r")",

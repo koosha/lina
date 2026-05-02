@@ -10,13 +10,27 @@ from pydantic import BaseModel
 
 from lina_redshift.templates.base import QueryTemplate
 
-_ALLOWED_OUTPUT_COLUMNS: frozenset[str] = frozenset({
-    "invoice_id", "invoice_number", "matter_id", "client_matter_id",
-    "vendor_id", "invoice_date", "billing_start_date", "billing_end_date",
-    "invoice_status", "approval_status", "currency_code",
-    "invoice_total_amount", "fee_total_amount", "expense_total_amount",
-    "approved_amount", "paid_amount", "payment_date",
-})
+_ALLOWED_OUTPUT_COLUMNS: frozenset[str] = frozenset(
+    {
+        "invoice_id",
+        "invoice_number",
+        "matter_id",
+        "client_matter_id",
+        "vendor_id",
+        "invoice_date",
+        "billing_start_date",
+        "billing_end_date",
+        "invoice_status",
+        "approval_status",
+        "currency_code",
+        "invoice_total_amount",
+        "fee_total_amount",
+        "expense_total_amount",
+        "approved_amount",
+        "paid_amount",
+        "payment_date",
+    }
+)
 
 
 class DateRange(BaseModel):
@@ -40,9 +54,7 @@ class InvoiceSearchParams(BaseModel):
 
 class InvoiceSearchTemplate(QueryTemplate):
     query_type: ClassVar[str] = "invoice_search"
-    allowed_roles: ClassVar[frozenset[str]] = frozenset(
-        {"legal_ops", "finance", "matter_owner"}
-    )
+    allowed_roles: ClassVar[frozenset[str]] = frozenset({"legal_ops", "finance", "matter_owner"})
     Params: ClassVar[type[BaseModel]] = InvoiceSearchParams
     default_limit: ClassVar[int] = 200
     max_limit: ClassVar[int] = 2_000
@@ -62,9 +74,7 @@ class InvoiceSearchTemplate(QueryTemplate):
             clauses.append("invoice_status = ANY(%(invoice_status)s)")
             binds["invoice_status"] = list(params.invoice_status)
         if params.invoice_date_range:
-            clauses.append(
-                "invoice_date BETWEEN %(invoice_date_start)s AND %(invoice_date_end)s"
-            )
+            clauses.append("invoice_date BETWEEN %(invoice_date_start)s AND %(invoice_date_end)s")
             binds["invoice_date_start"] = params.invoice_date_range.start
             binds["invoice_date_end"] = params.invoice_date_range.end
         if params.min_amount is not None:
@@ -87,7 +97,4 @@ class InvoiceSearchTemplate(QueryTemplate):
         return sql, binds
 
     def shape_packet(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        return [
-            {k: v for k, v in row.items() if k in _ALLOWED_OUTPUT_COLUMNS}
-            for row in rows
-        ]
+        return [{k: v for k, v in row.items() if k in _ALLOWED_OUTPUT_COLUMNS} for row in rows]

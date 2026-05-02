@@ -11,8 +11,8 @@ from psycopg2.extensions import connection as PgConnection  # noqa: N812
 class BillingCode:
     billing_code_id: str
     code: str
-    code_type: str    # "task" | "activity" | "expense"
-    code_set: str     # "UTBMS"
+    code_type: str  # "task" | "activity" | "expense"
+    code_set: str  # "UTBMS"
     description: str
 
 

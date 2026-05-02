@@ -186,10 +186,17 @@ def explain_cmd(ctx: click.Context, query_type: str, params: str) -> None:
             plan_lines = [r[0] for r in cur.fetchall()]
     finally:
         conn.close()
-    click.echo(json.dumps(
-        {"sql": sql, "binds": {k: str(v) for k, v in binds.items()}, "explain_plan": plan_lines},
-        indent=2, default=str,
-    ))
+    click.echo(
+        json.dumps(
+            {
+                "sql": sql,
+                "binds": {k: str(v) for k, v in binds.items()},
+                "explain_plan": plan_lines,
+            },
+            indent=2,
+            default=str,
+        )
+    )
 
 
 if __name__ == "__main__":

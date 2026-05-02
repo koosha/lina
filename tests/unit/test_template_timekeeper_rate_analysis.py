@@ -36,9 +36,7 @@ def test_build_sql_filters_timekeeper_ids(template: TimekeeperRateAnalysisTempla
 
 @pytest.mark.unit
 def test_build_sql_filters_variance_threshold(template: TimekeeperRateAnalysisTemplate) -> None:
-    sql, binds = template.build_sql(
-        TimekeeperRateAnalysisParams(rate_variance_threshold=0.1)
-    )
+    sql, binds = template.build_sql(TimekeeperRateAnalysisParams(rate_variance_threshold=0.1))
     assert "abs(rate_variance_percent) >= %(rate_variance_threshold)s" in sql
     assert binds["rate_variance_threshold"] == 0.1
 

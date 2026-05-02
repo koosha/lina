@@ -9,10 +9,16 @@ from pydantic import BaseModel, Field
 from lina_redshift.templates.base import QueryTemplate
 
 MetricName = Literal[
-    "total_billed_amount", "total_approved_amount",
-    "matter_count", "invoice_count",
-    "average_hourly_rate", "partner_hours", "associate_hours",
-    "expense_amount", "adjustment_amount", "billing_guideline_flag_count",
+    "total_billed_amount",
+    "total_approved_amount",
+    "matter_count",
+    "invoice_count",
+    "average_hourly_rate",
+    "partner_hours",
+    "associate_hours",
+    "expense_amount",
+    "adjustment_amount",
+    "billing_guideline_flag_count",
 ]
 
 _ALL_METRICS: list[MetricName] = list(MetricName.__args__)  # type: ignore[attr-defined]
@@ -57,7 +63,4 @@ class VendorSpendSummaryTemplate(QueryTemplate):
         return sql, binds
 
     def shape_packet(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        return [
-            {k: v for k, v in row.items() if k in _ALLOWED_OUTPUT_COLUMNS}
-            for row in rows
-        ]
+        return [{k: v for k, v in row.items() if k in _ALLOWED_OUTPUT_COLUMNS} for row in rows]

@@ -44,9 +44,7 @@ def test_build_sql_filters_date_range(template: InvoiceSearchTemplate) -> None:
 
 @pytest.mark.unit
 def test_build_sql_filters_amount_range(template: InvoiceSearchTemplate) -> None:
-    sql, binds = template.build_sql(
-        InvoiceSearchParams(min_amount=1000, max_amount=50000)
-    )
+    sql, binds = template.build_sql(InvoiceSearchParams(min_amount=1000, max_amount=50000))
     assert "invoice_total_amount >= %(min_amount)s" in sql
     assert "invoice_total_amount <= %(max_amount)s" in sql
 

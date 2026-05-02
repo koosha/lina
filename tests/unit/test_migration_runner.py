@@ -70,9 +70,7 @@ def test_apply_pending_applies_only_new_files(pg_conn: PgConnection, sql_dir: Pa
     runner = MigrationRunner(connection=pg_conn, sql_dir=sql_dir, target="postgres")
     runner.apply_pending()
 
-    (sql_dir / "003_third.sql").write_text(
-        "CREATE TABLE thing_three (id varchar PRIMARY KEY);"
-    )
+    (sql_dir / "003_third.sql").write_text("CREATE TABLE thing_three (id varchar PRIMARY KEY);")
     runner.apply_pending()
 
     with pg_conn.cursor() as cur:
@@ -94,7 +92,8 @@ def test_list_pending_returns_unapplied(pg_conn: PgConnection, sql_dir: Path) ->
 
 @pytest.mark.unit
 def test_apply_pending_translates_redshift_dialect_for_postgres(
-    pg_conn: PgConnection, tmp_path: Path,
+    pg_conn: PgConnection,
+    tmp_path: Path,
 ) -> None:
     sql_dir = tmp_path / "sql"
     sql_dir.mkdir()

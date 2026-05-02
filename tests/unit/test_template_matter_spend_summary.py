@@ -61,8 +61,12 @@ def test_limit_clamped_to_max(template: MatterSpendSummaryTemplate) -> None:
 @pytest.mark.unit
 def test_shape_packet_projects_metrics(template: MatterSpendSummaryTemplate) -> None:
     rows = [
-        {"matter_id": "m1", "fiscal_period": "2024-Q1",
-         "total_approved_amount": 1000, "internal_only": "leak"},
+        {
+            "matter_id": "m1",
+            "fiscal_period": "2024-Q1",
+            "total_approved_amount": 1000,
+            "internal_only": "leak",
+        },
     ]
     out = template.shape_packet(rows)
     assert out[0]["matter_id"] == "m1"

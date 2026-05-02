@@ -22,9 +22,7 @@ postgresql_db = factories.postgresql("postgresql_proc", dbname="lina_test")
 def pg_dsn(postgresql_db: PgConnection) -> str:
     """DSN for the per-test Postgres database."""
     info = postgresql_db.info
-    return (
-        f"postgresql://{info.user}@{info.host}:{info.port}/{info.dbname}"
-    )
+    return f"postgresql://{info.user}@{info.host}:{info.port}/{info.dbname}"
 
 
 @pytest.fixture

@@ -12,7 +12,9 @@ from lina_redshift.connection import (
 
 
 @pytest.mark.unit
-def test_resolve_config_uses_postgres_dsn_when_target_postgres(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_resolve_config_uses_postgres_dsn_when_target_postgres(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setenv("LINA_POSTGRES_DSN", "postgresql://u:p@host:5432/db")
     monkeypatch.delenv("LINA_REDSHIFT_DSN", raising=False)
 
@@ -23,7 +25,9 @@ def test_resolve_config_uses_postgres_dsn_when_target_postgres(monkeypatch: pyte
 
 
 @pytest.mark.unit
-def test_resolve_config_uses_redshift_dsn_when_target_redshift(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_resolve_config_uses_redshift_dsn_when_target_redshift(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setenv("LINA_REDSHIFT_DSN", "postgresql://u:p@cluster:5439/dev")
     monkeypatch.delenv("LINA_POSTGRES_DSN", raising=False)
 
@@ -52,7 +56,9 @@ def test_connection_config_default_statement_timeout_ms() -> None:
 
 
 @pytest.mark.unit
-def test_connection_config_reads_statement_timeout_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_connection_config_reads_statement_timeout_from_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setenv("LINA_STATEMENT_TIMEOUT_MS", "5000")
     monkeypatch.setenv("LINA_POSTGRES_DSN", "postgresql://localhost/x")
 

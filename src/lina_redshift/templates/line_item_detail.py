@@ -9,14 +9,32 @@ from pydantic import BaseModel, model_validator
 from lina_redshift.templates.base import QueryTemplate, validate_template_sql
 from lina_redshift.templates.invoice_search import DateRange
 
-_ALLOWED_OUTPUT_COLUMNS: frozenset[str] = frozenset({
-    "invoice_line_item_id", "invoice_id", "line_item_number",
-    "matter_id", "client_matter_id", "vendor_id", "timekeeper_id",
-    "line_item_date", "line_item_type", "task_code", "activity_code", "expense_code",
-    "units", "unit_rate", "line_item_total_amount", "adjustment_amount",
-    "approved_line_amount", "currency_code", "usd_amount",
-    "review_status", "billing_guideline_flag", "billing_guideline_reason",
-})
+_ALLOWED_OUTPUT_COLUMNS: frozenset[str] = frozenset(
+    {
+        "invoice_line_item_id",
+        "invoice_id",
+        "line_item_number",
+        "matter_id",
+        "client_matter_id",
+        "vendor_id",
+        "timekeeper_id",
+        "line_item_date",
+        "line_item_type",
+        "task_code",
+        "activity_code",
+        "expense_code",
+        "units",
+        "unit_rate",
+        "line_item_total_amount",
+        "adjustment_amount",
+        "approved_line_amount",
+        "currency_code",
+        "usd_amount",
+        "review_status",
+        "billing_guideline_flag",
+        "billing_guideline_reason",
+    }
+)
 
 
 class LineItemDetailParams(BaseModel):
@@ -33,8 +51,11 @@ class LineItemDetailParams(BaseModel):
     @model_validator(mode="after")
     def _at_least_one_filter(self) -> LineItemDetailParams:
         scoping = (
-            self.invoice_ids, self.matter_ids, self.task_codes,
-            self.expense_codes, self.line_item_date_range,
+            self.invoice_ids,
+            self.matter_ids,
+            self.task_codes,
+            self.expense_codes,
+            self.line_item_date_range,
         )
         if not any(scoping):
             raise ValueError(
@@ -74,8 +95,7 @@ class LineItemDetailTemplate(QueryTemplate):
             binds["billing_guideline_flag"] = params.billing_guideline_flag
         if params.line_item_date_range:
             clauses.append(
-                "line_item_date BETWEEN "
-                "%(line_item_date_start)s AND %(line_item_date_end)s"
+                "line_item_date BETWEEN %(line_item_date_start)s AND %(line_item_date_end)s"
             )
             binds["line_item_date_start"] = params.line_item_date_range.start
             binds["line_item_date_end"] = params.line_item_date_range.end
@@ -95,10 +115,7 @@ class LineItemDetailTemplate(QueryTemplate):
         return sql, binds
 
     def shape_packet(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        return [
-            {k: v for k, v in row.items() if k in _ALLOWED_OUTPUT_COLUMNS}
-            for row in rows
-        ]
+        return [{k: v for k, v in row.items() if k in _ALLOWED_OUTPUT_COLUMNS} for row in rows]
 
     def validate_at_import(self) -> None:
         """Use a minimal valid params instance (one filter) to render SQL for AST checks."""

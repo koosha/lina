@@ -23,8 +23,7 @@ def worker_db(pg_conn: PgConnection) -> PgConnection:
             "INSERT INTO dim_matter (matter_id, client_matter_id, matter_name, "
             "matter_status, matter_type, open_date, created_at, updated_at, source_system) "
             "VALUES (%s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, %s)",
-            ("matter_acme", "CM-1", "Acme v. Beta", "open", "litigation",
-             "2024-06-01", "test"),
+            ("matter_acme", "CM-1", "Acme v. Beta", "open", "litigation", "2024-06-01", "test"),
         )
     pg_conn.commit()
     return pg_conn
@@ -78,7 +77,8 @@ def test_run_returns_result_packet(worker: RedshiftWorker, legal_ops_caller: Cal
 
 @pytest.mark.unit
 def test_run_unknown_template_returns_error_packet(
-    worker: RedshiftWorker, legal_ops_caller: CallerContext,
+    worker: RedshiftWorker,
+    legal_ops_caller: CallerContext,
 ) -> None:
     packet = worker.run(
         query_type="bogus",
@@ -91,7 +91,8 @@ def test_run_unknown_template_returns_error_packet(
 
 @pytest.mark.unit
 def test_run_missing_role_returns_error_packet(
-    worker: RedshiftWorker, unauthorized_caller: CallerContext,
+    worker: RedshiftWorker,
+    unauthorized_caller: CallerContext,
 ) -> None:
     packet = worker.run(
         query_type="matter_spend_summary",
@@ -104,7 +105,8 @@ def test_run_missing_role_returns_error_packet(
 
 @pytest.mark.unit
 def test_run_invalid_params_returns_error_packet(
-    worker: RedshiftWorker, legal_ops_caller: CallerContext,
+    worker: RedshiftWorker,
+    legal_ops_caller: CallerContext,
 ) -> None:
     packet = worker.run(
         query_type="matter_lookup",
@@ -117,7 +119,8 @@ def test_run_invalid_params_returns_error_packet(
 
 @pytest.mark.unit
 def test_run_attaches_truncated_when_max_limit_hit(
-    worker_db: PgConnection, legal_ops_caller: CallerContext,
+    worker_db: PgConnection,
+    legal_ops_caller: CallerContext,
 ) -> None:
     """Insert enough rows to hit max_limit and verify truncated=True."""
     with worker_db.cursor() as cur:
@@ -127,8 +130,16 @@ def test_run_attaches_truncated_when_max_limit_hit(
                 "matter_status, matter_type, open_date, matter_owner_user_id, "
                 "created_at, updated_at, source_system) VALUES "
                 "(%s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, %s)",
-                (f"m_{i}", f"CM-{i}", f"Owned Matter {i}", "open", "litigation",
-                 "2024-01-01", "user_jane", "test"),
+                (
+                    f"m_{i}",
+                    f"CM-{i}",
+                    f"Owned Matter {i}",
+                    "open",
+                    "litigation",
+                    "2024-01-01",
+                    "user_jane",
+                    "test",
+                ),
             )
     worker_db.commit()
     worker = RedshiftWorker(connection=worker_db)
@@ -144,7 +155,8 @@ def test_run_attaches_truncated_when_max_limit_hit(
 
 @pytest.mark.unit
 def test_run_returns_empty_metrics_for_no_match(
-    worker: RedshiftWorker, legal_ops_caller: CallerContext,
+    worker: RedshiftWorker,
+    legal_ops_caller: CallerContext,
 ) -> None:
     packet = worker.run(
         query_type="matter_lookup",

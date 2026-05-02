@@ -32,9 +32,7 @@ def resolve_config(target: Target = "redshift") -> ConnectionConfig:
     env_name = "LINA_REDSHIFT_DSN" if target == "redshift" else "LINA_POSTGRES_DSN"
     dsn = os.environ.get(env_name)
     if not dsn:
-        raise MissingDsnError(
-            f"{env_name} is not set. Export it before invoking lina-redshift."
-        )
+        raise MissingDsnError(f"{env_name} is not set. Export it before invoking lina-redshift.")
     timeout_str = os.environ.get("LINA_STATEMENT_TIMEOUT_MS", "30000")
     return ConnectionConfig(dsn=dsn, target=target, statement_timeout_ms=int(timeout_str))
 

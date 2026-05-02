@@ -31,8 +31,13 @@ def _columns(conn: PgConnection, table: str) -> set[str]:
 def test_dim_timekeeper_columns(applied: PgConnection) -> None:
     cols = _columns(applied, "dim_timekeeper")
     expected = {
-        "timekeeper_id", "vendor_id", "timekeeper_name", "timekeeper_email",
-        "timekeeper_classification", "years_of_experience", "active_status",
+        "timekeeper_id",
+        "vendor_id",
+        "timekeeper_name",
+        "timekeeper_email",
+        "timekeeper_classification",
+        "years_of_experience",
+        "active_status",
     }
     assert expected <= cols
 
@@ -41,9 +46,16 @@ def test_dim_timekeeper_columns(applied: PgConnection) -> None:
 def test_fact_timekeeper_rate_columns(applied: PgConnection) -> None:
     cols = _columns(applied, "fact_timekeeper_rate")
     expected = {
-        "rate_id", "timekeeper_id", "vendor_id", "matter_id", "rate_type",
-        "hourly_rate", "currency_code", "effective_start_date",
-        "effective_end_date", "approval_status",
+        "rate_id",
+        "timekeeper_id",
+        "vendor_id",
+        "matter_id",
+        "rate_type",
+        "hourly_rate",
+        "currency_code",
+        "effective_start_date",
+        "effective_end_date",
+        "approval_status",
     }
     assert expected <= cols
 
@@ -58,12 +70,26 @@ def test_fact_timekeeper_rate_supports_history(applied: PgConnection) -> None:
             "effective_end_date, approval_status, created_at) VALUES "
             "(%s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP), "
             "(%s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)",
-            ("r1", "tk1", "v1", "standard", 600, "USD", "2023-01-01",
-             "2023-12-31", "approved",
-             "r2", "tk1", "v1", "standard", 650, "USD", "2024-01-01",
-             None, "approved"),
+            (
+                "r1",
+                "tk1",
+                "v1",
+                "standard",
+                600,
+                "USD",
+                "2023-01-01",
+                "2023-12-31",
+                "approved",
+                "r2",
+                "tk1",
+                "v1",
+                "standard",
+                650,
+                "USD",
+                "2024-01-01",
+                None,
+                "approved",
+            ),
         )
-        cur.execute(
-            "SELECT count(*) FROM fact_timekeeper_rate WHERE timekeeper_id = 'tk1'"
-        )
+        cur.execute("SELECT count(*) FROM fact_timekeeper_rate WHERE timekeeper_id = 'tk1'")
         assert cur.fetchone()[0] == 2

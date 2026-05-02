@@ -37,7 +37,8 @@ def test_build_sql_filters_invoice_id(template: LineItemDetailTemplate) -> None:
 @pytest.mark.unit
 def test_build_sql_filters_billing_guideline(template: LineItemDetailTemplate) -> None:
     params = LineItemDetailParams(
-        invoice_ids=["inv1"], billing_guideline_flag=True,
+        invoice_ids=["inv1"],
+        billing_guideline_flag=True,
     )
     sql, binds = template.build_sql(params)
     assert "billing_guideline_flag = %(billing_guideline_flag)s" in sql

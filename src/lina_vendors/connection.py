@@ -1,7 +1,7 @@
-"""OpenSearch connection re-exports for Subsystem A.
+"""OpenSearch connection re-exports for Subsystem B.
 
 The actual implementation lives in `lina_core.opensearch` and is shared with
-Subsystem B (`lina_vendors`).
+Subsystem A (`lina_users`).
 """
 
 from __future__ import annotations

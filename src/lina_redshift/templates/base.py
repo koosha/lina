@@ -44,6 +44,12 @@ def _extract_function_calls(sql: str) -> list[str]:
     ``to_char(x)`` because their schema requires more arguments. To keep the
     function-name allowlist independent of those AST-level constraints we
     detect call sites at the token level instead.
+
+    Only ``TokenType.VAR`` tokens count as identifier-shaped function names:
+    sqlglot assigns dedicated token types to reserved keywords (``WHERE``,
+    ``AND``, ``OR``, ``NOT``, ``FROM``, ``IN``, ``BETWEEN``, ...) and those
+    must not be misread as function calls when they happen to sit before
+    a parenthesized expression.
     """
     tokens = list(sqlglot.tokenize(sql, read="redshift"))
     calls: list[str] = []
@@ -51,9 +57,9 @@ def _extract_function_calls(sql: str) -> list[str]:
         next_tok = tokens[i + 1]
         if next_tok.token_type is not TokenType.L_PAREN:
             continue
-        # Function calls appear as identifier-like tokens followed by '('.
-        # Skip non-identifier tokens (operators, punctuation, etc.).
-        if not tok.text or not re.match(r"[A-Za-z_][A-Za-z_0-9]*$", tok.text):
+        if tok.token_type is not TokenType.VAR:
+            continue
+        if not tok.text:
             continue
         calls.append(tok.text.lower())
     return calls

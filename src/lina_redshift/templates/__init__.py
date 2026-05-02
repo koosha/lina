@@ -35,8 +35,12 @@ def all_templates() -> list[QueryTemplate]:
 
 from lina_redshift.templates.matter_lookup import MatterLookupTemplate  # noqa: E402
 from lina_redshift.templates.matter_spend_summary import MatterSpendSummaryTemplate  # noqa: E402
+from lina_redshift.templates.timekeeper_rate_analysis import (  # noqa: E402
+    TimekeeperRateAnalysisTemplate,
+)
 from lina_redshift.templates.vendor_spend_summary import VendorSpendSummaryTemplate  # noqa: E402
 
 register(MatterLookupTemplate())
 register(MatterSpendSummaryTemplate())
 register(VendorSpendSummaryTemplate())
+register(TimekeeperRateAnalysisTemplate())

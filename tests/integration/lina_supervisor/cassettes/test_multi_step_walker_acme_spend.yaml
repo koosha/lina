@@ -1,0 +1,247 @@
+interactions:
+- request:
+    body: '{"messages":[{"role":"user","content":"How much did Walker bill on the
+      Acme litigation last quarter?"}],"model":"gpt-5.2","max_completion_tokens":2048,"tool_choice":"auto","tools":[{"type":"function","function":{"name":"query_redshift","description":"Run
+      a typed query against the legal_matter_spend Redshift store. Use for matter,
+      vendor, timekeeper spend analytics; invoice or budget data; rate analysis. Specify
+      a `query_type` from the catalog and structured `params`.","parameters":{"type":"object","properties":{"query_type":{"type":"string","enum":["invoice_search","line_item_detail","matter_lookup","matter_spend_summary","timekeeper_rate_analysis","vendor_spend_summary"]},"params":{"type":"object","description":"Per-query_type
+      parameter object; see template-specific schemas in the system prompt."}},"required":["query_type","params"]}}},{"type":"function","function":{"name":"search_users","description":"Search
+      corporate user profiles. Use for finding internal users by name, role, department,
+      or to walk reporting chains.","parameters":{"type":"object","properties":{"query_type":{"type":"string","enum":["manager_chain","people_filter","user_lookup","user_search"]},"params":{"type":"object","description":"Per-query_type
+      parameter object; see template-specific schemas in the system prompt."}},"required":["query_type","params"]}}},{"type":"function","function":{"name":"search_vendors","description":"Search
+      outside counsel lawyer profiles. Use for finding vendor lawyers by name, vendor,
+      practice area, jurisdiction, or hourly-rate band.","parameters":{"type":"object","properties":{"query_type":{"type":"string","enum":["lawyer_search","outside_counsel_filter","practice_area_match","timekeeper_lookup"]},"params":{"type":"object","description":"Per-query_type
+      parameter object; see template-specific schemas in the system prompt."}},"required":["query_type","params"]}}}]}'
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate, zstd
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '1892'
+      Content-Type:
+      - application/json
+      Host:
+      - api.openai.com
+      User-Agent:
+      - OpenAI/Python 2.33.0
+      X-Stainless-Arch:
+      - arm64
+      X-Stainless-Async:
+      - 'false'
+      X-Stainless-Lang:
+      - python
+      X-Stainless-OS:
+      - MacOS
+      X-Stainless-Package-Version:
+      - 2.33.0
+      X-Stainless-Runtime:
+      - CPython
+      X-Stainless-Runtime-Version:
+      - 3.12.11
+      authorization:
+      - REDACTED
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-DbE5FWxhRaWg4Sin6yipzLf6tYxRw\",\n  \"object\"\
+        : \"chat.completion\",\n  \"created\": 1777764645,\n  \"model\": \"gpt-5.2-2025-12-11\"\
+        ,\n  \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n  \
+        \      \"role\": \"assistant\",\n        \"content\": null,\n        \"tool_calls\"\
+        : [\n          {\n            \"id\": \"call_O0DT9fRQFk7X3jevpSTqK43T\",\n\
+        \            \"type\": \"function\",\n            \"function\": {\n      \
+        \        \"name\": \"query_redshift\",\n              \"arguments\": \"{\\\
+        \"query_type\\\":\\\"matter_spend_summary\\\"}\"\n            }\n        \
+        \  }\n        ],\n        \"refusal\": null,\n        \"annotations\": []\n\
+        \      },\n      \"finish_reason\": \"tool_calls\"\n    }\n  ],\n  \"usage\"\
+        : {\n    \"prompt_tokens\": 338,\n    \"completion_tokens\": 22,\n    \"total_tokens\"\
+        : 360,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\": 0,\n  \
+        \    \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\": {\n \
+        \     \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\"\
+        : 0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\"\
+        : \"default\",\n  \"system_fingerprint\": null\n}\n"
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-Ray:
+      - 9f5ad0c37ff50d33-EWR
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Sat, 02 May 2026 23:30:46 GMT
+      Server:
+      - cloudflare
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      content-length:
+      - '1071'
+      openai-organization:
+      - REDACTED
+      openai-processing-ms:
+      - '1185'
+      openai-project:
+      - REDACTED
+      openai-version:
+      - '2020-10-01'
+      set-cookie:
+      - REDACTED
+      x-openai-proxy-wasm:
+      - v0.1
+      x-ratelimit-limit-requests:
+      - '500'
+      x-ratelimit-limit-tokens:
+      - '500000'
+      x-ratelimit-remaining-requests:
+      - '499'
+      x-ratelimit-remaining-tokens:
+      - '499982'
+      x-ratelimit-reset-requests:
+      - 120ms
+      x-ratelimit-reset-tokens:
+      - 2ms
+      x-request-id:
+      - REDACTED
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages":[{"role":"user","content":"How much did Walker bill on the
+      Acme litigation last quarter?"},{"role":"assistant","content":null,"tool_calls":[{"id":"call_O0DT9fRQFk7X3jevpSTqK43T","type":"function","function":{"name":"query_redshift","arguments":"{\"query_type\":\"matter_spend_summary\"}"}}]},{"role":"tool","tool_call_id":"call_O0DT9fRQFk7X3jevpSTqK43T","content":"{\"source_engine\":
+      \"redshift\", \"result_type\": \"vendor_spend_summary\", \"metrics\": [{\"vendor_id\":
+      \"vendor_walker\", \"fiscal_period\": \"2024-Q4\", \"billed_amount_usd\": 487500.0,
+      \"matter_id\": \"matter_acme_v_beta\"}], \"row_count\": 1, \"truncated\": false,
+      \"sql_trace_id\": \"trace_smoke_spend\"}"}],"model":"gpt-5.2","max_completion_tokens":2048,"tool_choice":"auto","tools":[{"type":"function","function":{"name":"query_redshift","description":"Run
+      a typed query against the legal_matter_spend Redshift store. Use for matter,
+      vendor, timekeeper spend analytics; invoice or budget data; rate analysis. Specify
+      a `query_type` from the catalog and structured `params`.","parameters":{"type":"object","properties":{"query_type":{"type":"string","enum":["invoice_search","line_item_detail","matter_lookup","matter_spend_summary","timekeeper_rate_analysis","vendor_spend_summary"]},"params":{"type":"object","description":"Per-query_type
+      parameter object; see template-specific schemas in the system prompt."}},"required":["query_type","params"]}}},{"type":"function","function":{"name":"search_users","description":"Search
+      corporate user profiles. Use for finding internal users by name, role, department,
+      or to walk reporting chains.","parameters":{"type":"object","properties":{"query_type":{"type":"string","enum":["manager_chain","people_filter","user_lookup","user_search"]},"params":{"type":"object","description":"Per-query_type
+      parameter object; see template-specific schemas in the system prompt."}},"required":["query_type","params"]}}},{"type":"function","function":{"name":"search_vendors","description":"Search
+      outside counsel lawyer profiles. Use for finding vendor lawyers by name, vendor,
+      practice area, jurisdiction, or hourly-rate band.","parameters":{"type":"object","properties":{"query_type":{"type":"string","enum":["lawyer_search","outside_counsel_filter","practice_area_match","timekeeper_lookup"]},"params":{"type":"object","description":"Per-query_type
+      parameter object; see template-specific schemas in the system prompt."}},"required":["query_type","params"]}}}]}'
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate, zstd
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '2481'
+      Content-Type:
+      - application/json
+      Cookie:
+      - __cf_bm=jdNkPYCm3naCNtASE_uguTxmaocXxD6rrlmVA7DKdCI-1777764644.3916998-1.0.1.1-lVaLfOS602fBJiAK._tNChQCI.WJNco4Tp3hWcDM.UwRHGtvtyOyhHfNXLlXk39gLMZbL.6jV4YwIr4AMGBHUDQZ09KSL23dzLQEYG02oHToVrMa9.nWxJ2F.6BWuVGY
+      Host:
+      - api.openai.com
+      User-Agent:
+      - OpenAI/Python 2.33.0
+      X-Stainless-Arch:
+      - arm64
+      X-Stainless-Async:
+      - 'false'
+      X-Stainless-Lang:
+      - python
+      X-Stainless-OS:
+      - MacOS
+      X-Stainless-Package-Version:
+      - 2.33.0
+      X-Stainless-Runtime:
+      - CPython
+      X-Stainless-Runtime-Version:
+      - 3.12.11
+      authorization:
+      - REDACTED
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-DbE5HDXgV3dYzKTFanvddaUoyD79i\",\n  \"object\"\
+        : \"chat.completion\",\n  \"created\": 1777764647,\n  \"model\": \"gpt-5.2-2025-12-11\"\
+        ,\n  \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n  \
+        \      \"role\": \"assistant\",\n        \"content\": \"Walker billed **$487,500**\
+        \ on the **Acme litigation** **last quarter (2024 Q4)**.\",\n        \"refusal\"\
+        : null,\n        \"annotations\": []\n      },\n      \"finish_reason\": \"\
+        stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 463,\n    \"completion_tokens\"\
+        : 28,\n    \"total_tokens\": 491,\n    \"prompt_tokens_details\": {\n    \
+        \  \"cached_tokens\": 0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\"\
+        : {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"\
+        accepted_prediction_tokens\": 0,\n      \"rejected_prediction_tokens\": 0\n\
+        \    }\n  },\n  \"service_tier\": \"default\",\n  \"system_fingerprint\":\
+        \ null\n}\n"
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-Ray:
+      - 9f5ad0d00cb5ccf1-EWR
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Sat, 02 May 2026 23:30:47 GMT
+      Server:
+      - cloudflare
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      content-length:
+      - '851'
+      openai-organization:
+      - REDACTED
+      openai-processing-ms:
+      - '995'
+      openai-project:
+      - REDACTED
+      openai-version:
+      - '2020-10-01'
+      x-openai-proxy-wasm:
+      - v0.1
+      x-ratelimit-limit-requests:
+      - '500'
+      x-ratelimit-limit-tokens:
+      - '500000'
+      x-ratelimit-remaining-requests:
+      - '499'
+      x-ratelimit-remaining-tokens:
+      - '499910'
+      x-ratelimit-reset-requests:
+      - 120ms
+      x-ratelimit-reset-tokens:
+      - 10ms
+      x-request-id:
+      - REDACTED
+    status:
+      code: 200
+      message: OK
+version: 1

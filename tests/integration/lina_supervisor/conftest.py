@@ -72,20 +72,46 @@ def pytest_collection_modifyitems(
             )
 
 
+_RESPONSE_HEADERS_TO_REDACT: frozenset[str] = frozenset(
+    {"openai-organization", "openai-project", "set-cookie", "x-request-id"}
+)
+
+
+def _scrub_response_headers(response: dict[str, Any]) -> dict[str, Any]:
+    """Strip account-identifying headers from recorded responses.
+
+    ``filter_headers`` in vcrpy only applies to **requests**. Account-side
+    identifiers (``openai-organization``, ``openai-project``) are returned by
+    the API in the **response** headers and would otherwise persist in
+    cassettes that we commit to a public repo.
+    """
+    headers = response.get("headers") or {}
+    for name in list(headers):
+        if name.lower() in _RESPONSE_HEADERS_TO_REDACT:
+            headers[name] = ["REDACTED"]
+    return response
+
+
 @pytest.fixture(scope="module")
 def vcr_config() -> dict[str, Any]:
     """pytest-vcr configuration: redact secrets from any recorded cassette.
 
-    ``Authorization`` (the OpenAI SDK's default) is stripped before the
-    cassette is written. ``OpenAI-Organization`` is filtered defensively in
-    case the SDK includes it.
+    Request side: ``Authorization`` (the OpenAI SDK's default), ``x-api-key``
+    (any retry/auth header), and ``OpenAI-Organization`` are stripped.
+
+    Response side: ``before_record_response`` scrubs account-identifying
+    headers (``openai-organization``, ``openai-project``) which the API
+    echoes back, plus per-request fingerprints (``x-request-id``,
+    ``set-cookie``). ``filter_headers`` does NOT apply to responses.
     """
     return {
         "filter_headers": [
             ("authorization", "REDACTED"),
             ("openai-organization", "REDACTED"),
+            ("openai-project", "REDACTED"),
             ("x-api-key", "REDACTED"),
         ],
+        "before_record_response": _scrub_response_headers,
         "decode_compressed_response": True,
         "match_on": ["method", "scheme", "host", "port", "path", "query"],
     }

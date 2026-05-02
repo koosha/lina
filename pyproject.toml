@@ -40,6 +40,8 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 lina_redshift = ["migrations/sql/*.sql"]
+lina_users = ["indices/mappings/*.json"]
+lina_vendors = ["indices/mappings/*.json"]
 
 [tool.coverage.run]
 source = ["src/lina_redshift"]

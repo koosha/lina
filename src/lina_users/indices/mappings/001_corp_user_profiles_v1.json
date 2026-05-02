@@ -1,0 +1,49 @@
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 0
+  },
+  "mappings": {
+    "properties": {
+      "user_id": {"type": "keyword"},
+      "employee_id": {"type": "keyword"},
+      "email": {"type": "keyword"},
+      "email_text": {"type": "text"},
+      "first_name": {"type": "text", "fields": {"keyword": {"type": "keyword"}}},
+      "last_name": {"type": "text", "fields": {"keyword": {"type": "keyword"}}},
+      "display_name": {"type": "text", "fields": {"keyword": {"type": "keyword"}}},
+      "phone_number": {"type": "keyword"},
+      "mobile_number": {"type": "keyword"},
+      "job_title": {"type": "text", "fields": {"keyword": {"type": "keyword"}}},
+      "department": {"type": "keyword"},
+      "business_unit": {"type": "keyword"},
+      "cost_center": {"type": "keyword"},
+      "manager_user_id": {"type": "keyword"},
+      "office_location_id": {"type": "keyword"},
+      "corporate_address": {
+        "type": "object",
+        "properties": {
+          "address_line_1": {"type": "text", "fields": {"keyword": {"type": "keyword"}}},
+          "address_line_2": {"type": "text", "fields": {"keyword": {"type": "keyword"}}},
+          "city": {"type": "keyword"},
+          "state_province": {"type": "keyword"},
+          "postal_code": {"type": "keyword"},
+          "country_code": {"type": "keyword"},
+          "full_address": {"type": "text"}
+        }
+      },
+      "region": {"type": "keyword"},
+      "country_code": {"type": "keyword"},
+      "timezone": {"type": "keyword"},
+      "user_status": {"type": "keyword"},
+      "user_type": {"type": "keyword"},
+      "roles": {"type": "keyword"},
+      "permission_tags": {"type": "keyword"},
+      "legal_team_role": {"type": "keyword"},
+      "practice_area_focus": {"type": "keyword"},
+      "created_at": {"type": "date"},
+      "updated_at": {"type": "date"},
+      "source_system": {"type": "keyword"}
+    }
+  }
+}

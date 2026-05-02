@@ -1,8 +1,8 @@
 """Unit tests for the lina-chat CLI.
 
 Backends are stubbed via monkeypatching the worker factory functions in
-``lina_supervisor.cli`` and the Anthropic client returned by
-``_build_anthropic_client``. No real network calls happen.
+``lina_supervisor.cli`` and the OpenAI client returned by
+``_build_openai_client``. No real network calls happen.
 """
 
 from __future__ import annotations
@@ -33,47 +33,50 @@ def _users_lookup_packet() -> UsersResultPacket:
     )
 
 
-class _StreamCtx:
-    def __init__(self, chunks: list[str]) -> None:
-        self.text_stream = iter(chunks)
-
-    def __enter__(self) -> _StreamCtx:
-        return self
-
-    def __exit__(self, *_args: Any) -> None:
-        return None
-
-
-def _text_block(text: str) -> Any:
-    block = MagicMock()
-    block.type = "text"
-    block.text = text
-    return block
+def _stream_chunk(text: str | None) -> Any:
+    delta = MagicMock()
+    delta.content = text
+    choice = MagicMock()
+    choice.delta = delta
+    chunk = MagicMock()
+    chunk.choices = [choice]
+    return chunk
 
 
-def _message_with_text(text: str) -> Any:
-    msg = MagicMock()
-    msg.content = [_text_block(text)]
-    msg.role = "assistant"
-    msg.stop_reason = "end_turn"
-    return msg
+def _text_response(text: str) -> Any:
+    """Build a mock OpenAI ChatCompletion with text-only content."""
+    message = MagicMock()
+    message.content = text
+    message.tool_calls = None
+    choice = MagicMock()
+    choice.message = message
+    choice.finish_reason = "stop"
+    response = MagicMock()
+    response.choices = [choice]
+    return response
 
 
-def _stub_anthropic(
+def _stub_openai(
     *,
-    routing_messages: list[Any],
+    routing_responses: list[Any],
     final_chunks: list[str] | None = None,
 ) -> MagicMock:
     client = MagicMock()
-    client.messages.create.side_effect = list(routing_messages)
-    client.messages.stream.return_value = _StreamCtx(final_chunks or ["final"])
+    chunks = [_stream_chunk(c) for c in (final_chunks or ["final"])]
+
+    def _create(*_args: Any, **kwargs: Any) -> Any:
+        if kwargs.get("stream"):
+            return iter(chunks)
+        return routing_responses.pop(0)
+
+    client.chat.completions.create.side_effect = _create
     return client
 
 
 def _patch_cli(
     monkeypatch: pytest.MonkeyPatch,
     *,
-    anthropic_client: MagicMock,
+    llm_client: MagicMock,
     user_lookup_packet: UsersResultPacket | None = None,
     user_lookup_raises: Exception | None = None,
 ) -> tuple[MagicMock, MagicMock, MagicMock]:
@@ -88,11 +91,11 @@ def _patch_cli(
     elif user_lookup_packet is not None:
         users_worker.run.return_value = user_lookup_packet
 
-    monkeypatch.setattr(cli, "_build_anthropic_client", lambda _cfg: anthropic_client)
+    monkeypatch.setattr(cli, "_build_openai_client", lambda _cfg: llm_client)
     monkeypatch.setattr(cli, "_build_redshift_worker", lambda: redshift_worker)
     monkeypatch.setattr(cli, "_build_users_worker", lambda: users_worker)
     monkeypatch.setattr(cli, "_build_vendors_worker", lambda: vendors_worker)
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
     return users_worker, redshift_worker, vendors_worker
 
 
@@ -102,8 +105,8 @@ def test_ask_one_shot_emits_supervisor_response_json(
 ) -> None:
     from lina_supervisor.cli import main
 
-    client = _stub_anthropic(routing_messages=[_message_with_text("Hello, Jane.")])
-    _patch_cli(monkeypatch, anthropic_client=client, user_lookup_packet=_users_lookup_packet())
+    client = _stub_openai(routing_responses=[_text_response("Hello, Jane.")])
+    _patch_cli(monkeypatch, llm_client=client, user_lookup_packet=_users_lookup_packet())
 
     runner = CliRunner()
     result = runner.invoke(
@@ -130,8 +133,8 @@ def test_ask_streams_token_by_token_in_default_mode(
 ) -> None:
     from lina_supervisor.cli import main
 
-    client = _stub_anthropic(routing_messages=[_message_with_text("streamed text")])
-    _patch_cli(monkeypatch, anthropic_client=client, user_lookup_packet=_users_lookup_packet())
+    client = _stub_openai(routing_responses=[_text_response("streamed text")])
+    _patch_cli(monkeypatch, llm_client=client, user_lookup_packet=_users_lookup_packet())
 
     runner = CliRunner()
     result = runner.invoke(
@@ -149,7 +152,7 @@ def test_ask_returns_error_for_unknown_user_id(
 ) -> None:
     from lina_supervisor.cli import main
 
-    client = _stub_anthropic(routing_messages=[_message_with_text("never reached")])
+    client = _stub_openai(routing_responses=[_text_response("never reached")])
     empty_lookup = UsersResultPacket(
         result_type="user_lookup",
         metrics=[],
@@ -157,7 +160,7 @@ def test_ask_returns_error_for_unknown_user_id(
         row_count=0,
         truncated=False,
     )
-    _patch_cli(monkeypatch, anthropic_client=client, user_lookup_packet=empty_lookup)
+    _patch_cli(monkeypatch, llm_client=client, user_lookup_packet=empty_lookup)
 
     runner = CliRunner()
     result = runner.invoke(
@@ -173,13 +176,13 @@ def test_ask_returns_error_for_unknown_user_id(
 def test_repl_handles_multiple_turns(monkeypatch: pytest.MonkeyPatch) -> None:
     from lina_supervisor.cli import main
 
-    client = _stub_anthropic(
-        routing_messages=[
-            _message_with_text("turn one answer"),
-            _message_with_text("turn two answer"),
+    client = _stub_openai(
+        routing_responses=[
+            _text_response("turn one answer"),
+            _text_response("turn two answer"),
         ]
     )
-    _patch_cli(monkeypatch, anthropic_client=client, user_lookup_packet=_users_lookup_packet())
+    _patch_cli(monkeypatch, llm_client=client, user_lookup_packet=_users_lookup_packet())
 
     runner = CliRunner()
     result = runner.invoke(
@@ -205,8 +208,8 @@ def test_max_worker_calls_override(monkeypatch: pytest.MonkeyPatch) -> None:
         return real_build_supervisor(config=config, **kwargs)
 
     monkeypatch.setattr(cli, "_build_supervisor", _capture)
-    client = _stub_anthropic(routing_messages=[_message_with_text("ok")])
-    _patch_cli(monkeypatch, anthropic_client=client, user_lookup_packet=_users_lookup_packet())
+    client = _stub_openai(routing_responses=[_text_response("ok")])
+    _patch_cli(monkeypatch, llm_client=client, user_lookup_packet=_users_lookup_packet())
 
     runner = CliRunner()
     result = runner.invoke(
@@ -230,8 +233,8 @@ def test_max_worker_calls_override(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_no_stream_flag_emits_single_json(monkeypatch: pytest.MonkeyPatch) -> None:
     from lina_supervisor.cli import main
 
-    client = _stub_anthropic(routing_messages=[_message_with_text("Hi.")])
-    _patch_cli(monkeypatch, anthropic_client=client, user_lookup_packet=_users_lookup_packet())
+    client = _stub_openai(routing_responses=[_text_response("Hi.")])
+    _patch_cli(monkeypatch, llm_client=client, user_lookup_packet=_users_lookup_packet())
 
     runner = CliRunner()
     result = runner.invoke(

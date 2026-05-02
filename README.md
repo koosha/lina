@@ -17,7 +17,7 @@ graph TB
         direction TB
         Chat --> Resolver[CallerResolver]
         Resolver --> Graph["LangGraph state machine<br/>(route → execute_tools → synthesize)"]
-        Graph <--> Claude[(Claude Sonnet 4.7<br/>Anthropic API)]
+        Graph <--> LLM[(OpenAI gpt-4o<br/>OpenAI API)]
     end
 
     Graph -->|tool: query_redshift| RedshiftWorker
@@ -43,10 +43,10 @@ graph TB
     classDef llm fill:#7c2d12,stroke:#ea580c,color:#fff7ed
     class RS,OS1,OS2 backend
     class RedshiftWorker,UserSearchWorker,VendorSearchWorker worker
-    class Claude llm
+    class LLM llm
 ```
 
-**How it works.** The user asks a question. The supervisor resolves the user's `CallerContext` via Subsystem A (`user_lookup`), then enters a LangGraph loop: Claude picks one of three tools (`query_redshift`, `search_users`, `search_vendors`) with structured `{query_type, params}` arguments matching a registered template. The matching worker validates roles, runs the bounded query, and returns a normalized `ResultPacket`. Claude either calls another tool or synthesizes a final streaming answer that cites every packet it consumed. A hard cap (`max_worker_calls=8` per turn) prevents runaway loops.
+**How it works.** The user asks a question. The supervisor resolves the user's `CallerContext` via Subsystem A (`user_lookup`), then enters a LangGraph loop: OpenAI (`gpt-4o`) picks one of three tools (`query_redshift`, `search_users`, `search_vendors`) with structured `{query_type, params}` arguments matching a registered template. The matching worker validates roles, runs the bounded query, and returns a normalized `ResultPacket`. The model either calls another tool or synthesizes a final streaming answer that cites every packet it consumed. A hard cap (`max_worker_calls=8` per turn) prevents runaway loops.
 
 Each worker is independently usable as a library or CLI — see the per-subsystem sections below.
 
@@ -55,7 +55,7 @@ Each worker is independently usable as a library or CLI — see the per-subsyste
 | **C** | `RedshiftWorker` | `lina-redshift` | Amazon Redshift Serverless (Postgres locally) | 6 | [redshift](./docs/superpowers/specs/2026-05-02-lina-redshift-worker-design.md) |
 | **A** | `UserSearchWorker` | `lina-users` | Amazon OpenSearch | 4 | [opensearch](./docs/superpowers/specs/2026-05-02-lina-opensearch-workers-design.md) |
 | **B** | `VendorSearchWorker` | `lina-vendors` | Amazon OpenSearch | 4 | [opensearch](./docs/superpowers/specs/2026-05-02-lina-opensearch-workers-design.md) |
-| **D** | LangGraph supervisor | `lina-chat` | A + B + C | — | [supervisor](./docs/superpowers/specs/2026-05-02-lina-supervisor-design.md) |
+| **D** | LangGraph + OpenAI supervisor | `lina-chat` | A + B + C | — | [supervisor](./docs/superpowers/specs/2026-05-02-lina-supervisor-design.md) |
 
 ---
 
@@ -111,7 +111,7 @@ lina-vendors run lawyer_search --params '{"query": "California privacy litigatio
 #### `lina-chat` — the chat supervisor
 
 ```bash
-export ANTHROPIC_API_KEY=sk-ant-...
+export OPENAI_API_KEY=sk-...
 export LINA_REDSHIFT_DSN=postgresql://user:pass@workgroup-host:5439/dev
 export LINA_OPENSEARCH_HOST=https://search-corp.us-east-1.es.amazonaws.com
 export LINA_OPENSEARCH_AUTH=aws_sigv4
@@ -137,7 +137,7 @@ lina-users indices apply && lina-users seed
 lina-vendors indices apply && lina-vendors seed
 pytest -m integration tests/integration/lina_users tests/integration/lina_vendors -v
 
-# Supervisor (2 tests, VCR-replayed; cassette or live API key required)
+# Supervisor (2 tests, VCR-replayed; cassette or live OPENAI_API_KEY required)
 pytest -m integration tests/integration/lina_supervisor -v
 ```
 
@@ -248,12 +248,12 @@ The supervisor (`lina_supervisor`) wraps these three workers via `WorkerHub` + L
 
 | Variable | Required | Purpose |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | yes | Anthropic API key |
-| `LINA_SUPERVISOR_MODEL` | no (default `claude-sonnet-4-7`) | Override the Claude model |
+| `OPENAI_API_KEY` | yes | OpenAI API key |
+| `LINA_SUPERVISOR_MODEL` | no (default `gpt-4o`) | Override the OpenAI model |
 | `LINA_SUPERVISOR_MAX_WORKER_CALLS` | no (default 8) | Hard cap on worker calls per user turn |
 | `LINA_SUPERVISOR_ROUTE_MAX_TOKENS` | no (default 2048) | Token cap for routing pass |
 | `LINA_SUPERVISOR_SYNTHESIZE_MAX_TOKENS` | no (default 4096) | Token cap for synthesis pass |
-| `LINA_SUPERVISOR_REQUEST_TIMEOUT_SECONDS` | no (default 60) | Per-request timeout for Anthropic |
+| `LINA_SUPERVISOR_REQUEST_TIMEOUT_SECONDS` | no (default 60) | Per-request timeout for OpenAI |
 
 The supervisor reuses the Redshift and OpenSearch env vars above; any worker whose env vars are unset is omitted from the tool catalog rather than failing the run.
 
@@ -294,7 +294,7 @@ See §11/§12 of each design doc. Highlights:
 - Custom fiscal calendars, FX rate service integration
 - Persistent supervisor session storage (current `InMemorySessionStore` is per-process)
 - FastAPI / HTTP service deployment of `lina-chat`
-- AWS Bedrock as an alternative to direct Anthropic API
+- AWS Bedrock or Azure OpenAI as alternatives to direct OpenAI API
 - Hybrid retrieval (kNN on `profile_embedding` is reserved in the OpenSearch mappings)
 
 ---
@@ -315,7 +315,7 @@ lina/
 │   └── lina_supervisor/                 # Subsystem D — LangGraph supervisor
 └── tests/
     ├── unit/                            # 303 hermetic tests
-    └── integration/                     # 18 staged tests (Redshift + OpenSearch + Anthropic VCR)
+    └── integration/                     # 18 staged tests (Redshift + OpenSearch + OpenAI VCR)
 ```
 
 Per-subsystem layout details live in §3 of each design doc.

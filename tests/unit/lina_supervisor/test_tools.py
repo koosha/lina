@@ -1,4 +1,4 @@
-"""Unit tests for Claude tool definitions exposed by the supervisor."""
+"""Unit tests for OpenAI tool definitions exposed by the supervisor."""
 
 from __future__ import annotations
 
@@ -13,17 +13,21 @@ from lina_vendors.templates import TEMPLATE_REGISTRY as VENDORS_REGISTRY
 @pytest.mark.unit
 def test_three_tools_defined() -> None:
     tools = build_tool_definitions()
-    names = [t["name"] for t in tools]
+    names = [t["function"]["name"] for t in tools]
     assert names == ["query_redshift", "search_users", "search_vendors"]
 
 
 @pytest.mark.unit
-def test_each_tool_has_input_schema() -> None:
+def test_each_tool_has_function_parameters() -> None:
     tools = build_tool_definitions()
     for tool in tools:
-        assert "description" in tool
-        assert "input_schema" in tool
-        schema = tool["input_schema"]
+        assert tool["type"] == "function"
+        assert "function" in tool
+        function = tool["function"]
+        assert "name" in function
+        assert "description" in function
+        assert "parameters" in function
+        schema = function["parameters"]
         assert schema["type"] == "object"
         assert "query_type" in schema["properties"]
         assert "params" in schema["properties"]
@@ -32,22 +36,26 @@ def test_each_tool_has_input_schema() -> None:
 
 @pytest.mark.unit
 def test_query_redshift_query_type_enum_matches_redshift_registry() -> None:
-    tools = {t["name"]: t for t in build_tool_definitions()}
-    enum = set(tools["query_redshift"]["input_schema"]["properties"]["query_type"]["enum"])
+    tools = {t["function"]["name"]: t for t in build_tool_definitions()}
+    enum = set(
+        tools["query_redshift"]["function"]["parameters"]["properties"]["query_type"]["enum"]
+    )
     assert enum == set(RS_REGISTRY.keys())
 
 
 @pytest.mark.unit
 def test_search_users_query_type_enum_matches_users_registry() -> None:
-    tools = {t["name"]: t for t in build_tool_definitions()}
-    enum = set(tools["search_users"]["input_schema"]["properties"]["query_type"]["enum"])
+    tools = {t["function"]["name"]: t for t in build_tool_definitions()}
+    enum = set(tools["search_users"]["function"]["parameters"]["properties"]["query_type"]["enum"])
     assert enum == set(USERS_REGISTRY.keys())
 
 
 @pytest.mark.unit
 def test_search_vendors_query_type_enum_matches_vendors_registry() -> None:
-    tools = {t["name"]: t for t in build_tool_definitions()}
-    enum = set(tools["search_vendors"]["input_schema"]["properties"]["query_type"]["enum"])
+    tools = {t["function"]["name"]: t for t in build_tool_definitions()}
+    enum = set(
+        tools["search_vendors"]["function"]["parameters"]["properties"]["query_type"]["enum"]
+    )
     assert enum == set(VENDORS_REGISTRY.keys())
 
 

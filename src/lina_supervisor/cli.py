@@ -34,10 +34,10 @@ from lina_supervisor.workers import WorkerHub
 # ---------------------------------------------------------------------------
 
 
-def _build_anthropic_client(config: SupervisorConfig) -> Any:
-    from anthropic import Anthropic
+def _build_openai_client(config: SupervisorConfig) -> Any:
+    from openai import OpenAI
 
-    return Anthropic(api_key=config.anthropic_api_key)
+    return OpenAI(api_key=config.openai_api_key)
 
 
 def _build_redshift_worker() -> Any:
@@ -86,7 +86,7 @@ def _build_supervisor(
     redshift_worker: Any,
     users_worker: Any,
     vendors_worker: Any,
-    anthropic_client: Any,
+    llm_client: Any,
 ) -> tuple[Any, WorkerHub, InMemorySessionStore]:
     hub = WorkerHub(
         redshift_worker=redshift_worker,
@@ -98,7 +98,7 @@ def _build_supervisor(
         config=config,
         hub=hub,
         session_store=session_store,
-        anthropic_client=anthropic_client,
+        llm_client=llm_client,
     )
     return graph, hub, session_store
 
@@ -150,7 +150,7 @@ def _override_config(
     model: str | None,
 ) -> SupervisorConfig:
     return SupervisorConfig(
-        anthropic_api_key=base.anthropic_api_key,
+        openai_api_key=base.openai_api_key,
         model=model or base.model,
         max_worker_calls=max_worker_calls or base.max_worker_calls,
         route_max_tokens=base.route_max_tokens,
@@ -221,7 +221,7 @@ def main() -> None:
     default=None,
     help="Cap on worker calls per user turn (default 8).",
 )
-@click.option("--model", default=None, help="Override the Claude model.")
+@click.option("--model", default=None, help="Override the OpenAI model.")
 def ask_cmd(
     user_id: str,
     query: str,
@@ -237,7 +237,7 @@ def ask_cmd(
     redshift_worker = _build_redshift_worker()
     users_worker = _build_users_worker()
     vendors_worker = _build_vendors_worker()
-    anthropic_client = _build_anthropic_client(config)
+    llm_client = _build_openai_client(config)
 
     backends = _connected_backends(
         redshift_worker=redshift_worker,
@@ -245,7 +245,8 @@ def ask_cmd(
         vendors_worker=vendors_worker,
     )
     click.echo(
-        f"connected backends: {','.join(backends) if backends else '(none)'}",
+        f"connected backends: {','.join(backends) if backends else '(none)'} "
+        f"| LLM: OpenAI {config.model}",
         err=True,
     )
 
@@ -275,7 +276,7 @@ def ask_cmd(
         redshift_worker=redshift_worker,
         users_worker=users_worker,
         vendors_worker=vendors_worker,
-        anthropic_client=anthropic_client,
+        llm_client=llm_client,
     )
 
     response = _run_turn(
@@ -306,7 +307,7 @@ def repl_cmd(user_id: str, session_id: str | None) -> None:
     redshift_worker = _build_redshift_worker()
     users_worker = _build_users_worker()
     vendors_worker = _build_vendors_worker()
-    anthropic_client = _build_anthropic_client(base_config)
+    llm_client = _build_openai_client(base_config)
 
     backends = _connected_backends(
         redshift_worker=redshift_worker,
@@ -314,7 +315,8 @@ def repl_cmd(user_id: str, session_id: str | None) -> None:
         vendors_worker=vendors_worker,
     )
     click.echo(
-        f"connected backends: {','.join(backends) if backends else '(none)'}",
+        f"connected backends: {','.join(backends) if backends else '(none)'} "
+        f"| LLM: OpenAI {base_config.model}",
         err=True,
     )
 
@@ -341,7 +343,7 @@ def repl_cmd(user_id: str, session_id: str | None) -> None:
         redshift_worker=redshift_worker,
         users_worker=users_worker,
         vendors_worker=vendors_worker,
-        anthropic_client=anthropic_client,
+        llm_client=llm_client,
     )
 
     click.echo(f"lina-chat repl — session {session_id_resolved}", err=True)
@@ -373,7 +375,7 @@ if __name__ == "__main__":
 
 
 __all__ = [
-    "_build_anthropic_client",
+    "_build_openai_client",
     "_build_redshift_worker",
     "_build_supervisor",
     "_build_users_worker",

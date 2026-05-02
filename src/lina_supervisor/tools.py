@@ -1,4 +1,4 @@
-"""Claude tool definitions exposed to the supervisor LLM.
+"""OpenAI tool definitions exposed to the supervisor LLM.
 
 The supervisor exposes one tool per worker subsystem (A, B, C). Each tool
 takes a ``query_type`` from the subsystem's TEMPLATE_REGISTRY and a
@@ -15,7 +15,7 @@ from lina_vendors.templates import TEMPLATE_REGISTRY as VENDORS_REGISTRY
 
 
 def build_tool_definitions() -> list[dict[str, Any]]:
-    """Return the three Claude tool dicts in canonical order."""
+    """Return the three OpenAI tool dicts in canonical order."""
     return [
         _tool_for_subsystem(
             name="query_redshift",
@@ -54,24 +54,27 @@ def _tool_for_subsystem(
     registry: dict[str, Any],
 ) -> dict[str, Any]:
     return {
-        "name": name,
-        "description": description,
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "query_type": {
-                    "type": "string",
-                    "enum": sorted(registry.keys()),
+        "type": "function",
+        "function": {
+            "name": name,
+            "description": description,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query_type": {
+                        "type": "string",
+                        "enum": sorted(registry.keys()),
+                    },
+                    "params": {
+                        "type": "object",
+                        "description": (
+                            "Per-query_type parameter object; see template-specific "
+                            "schemas in the system prompt."
+                        ),
+                    },
                 },
-                "params": {
-                    "type": "object",
-                    "description": (
-                        "Per-query_type parameter object; see template-specific "
-                        "schemas in the system prompt."
-                    ),
-                },
+                "required": ["query_type", "params"],
             },
-            "required": ["query_type", "params"],
         },
     }
 

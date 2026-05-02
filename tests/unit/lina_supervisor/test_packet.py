@@ -16,7 +16,7 @@ def test_default_values() -> None:
         request_id="r1",
         user_id="user_jane",
         answer_text="hi",
-        model="claude-sonnet-4-7",
+        model="gpt-4o",
         duration_ms=42,
         sql_trace_id="01J0000000000000000000000",
     )
@@ -36,7 +36,7 @@ def test_required_fields_validation() -> None:
             request_id="r1",
             # user_id missing
             answer_text="hi",
-            model="claude-sonnet-4-7",
+            model="gpt-4o",
             duration_ms=42,
             sql_trace_id="01J0000000000000000000000",
         )  # type: ignore[call-arg]
@@ -52,7 +52,7 @@ def test_round_trips_via_json() -> None:
         worker_packets=[{"foo": "bar"}],
         worker_call_count=1,
         truncated=True,
-        model="claude-sonnet-4-7",
+        model="gpt-4o",
         duration_ms=100,
         sql_trace_id="01J0000000000000000000000",
     )

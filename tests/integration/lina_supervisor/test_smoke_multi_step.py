@@ -8,7 +8,7 @@ forces the supervisor to:
    against ``vendor_spend_summary`` (or ``invoice_search``);
 3. Synthesize a final answer mentioning a dollar figure.
 
-When no cassette is recorded and no ``ANTHROPIC_API_KEY`` is set, this test
+When no cassette is recorded and no ``OPENAI_API_KEY`` is set, this test
 skips cleanly via the conftest hook.
 """
 

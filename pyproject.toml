@@ -17,10 +17,9 @@ dependencies = [
     "Faker>=24.0",
     "opensearch-py>=2.7",
     "requests-aws4auth>=1.2",
-    "anthropic>=0.42",
+    "openai>=1.50",
     "langgraph>=0.2",
     "langchain-core>=0.3",
-    "langchain-anthropic>=0.2",
 ]
 
 [project.optional-dependencies]

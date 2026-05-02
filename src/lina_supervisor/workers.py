@@ -1,4 +1,4 @@
-"""WorkerHub: dispatches Claude tool calls to the right subsystem worker."""
+"""WorkerHub: dispatches LLM tool calls to the right subsystem worker."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from lina_core.caller import CallerContext
 
 @dataclass
 class WorkerHub:
-    """Façade routing a Claude ``tool_use`` block to the correct worker.
+    """Façade routing an LLM tool call to the correct worker.
 
     Workers are typed as ``Any`` to avoid hard-import dependencies in tests
     that mock the worker interfaces.

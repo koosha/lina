@@ -1,8 +1,8 @@
 """Final synthesis pass: combines worker results into the user-facing answer.
 
-Streams text chunks from Claude. Called only when the supervisor has hit
-the worker-call cap mid-conversation; the standard text-only-no-tools path
-in ``route`` short-circuits to END without invoking the synthesizer.
+Streams text chunks from OpenAI. Called only when the supervisor has hit the
+worker-call cap mid-conversation; the standard text-only-no-tools path in
+``route`` short-circuits to END without invoking the synthesizer.
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ _FINAL_INSTRUCTION = (
 
 def stream_final_answer(
     *,
-    anthropic_client: Any,
+    llm_client: Any,
     config: SupervisorConfig,
     messages: list[dict[str, Any]],
 ) -> Iterator[str]:
@@ -30,9 +30,19 @@ def stream_final_answer(
         *messages,
         {"role": "user", "content": _FINAL_INSTRUCTION},
     ]
-    with anthropic_client.messages.stream(
+    stream = llm_client.chat.completions.create(
         model=config.model,
         max_tokens=config.synthesize_max_tokens,
         messages=final_messages,
-    ) as stream:
-        yield from stream.text_stream
+        stream=True,
+    )
+    for chunk in stream:
+        choices = getattr(chunk, "choices", None) or []
+        if not choices:
+            continue
+        delta = getattr(choices[0], "delta", None)
+        if delta is None:
+            continue
+        content = getattr(delta, "content", None)
+        if content:
+            yield content

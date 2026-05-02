@@ -1,4 +1,4 @@
-"""Single-step supervisor smoke test against a real (or replayed) Claude API.
+"""Single-step supervisor smoke test against a real (or replayed) OpenAI API.
 
 The test asks "How many open litigation matters do we have?" and asserts that
 the supervisor:
@@ -8,7 +8,7 @@ the supervisor:
 - produces a final text answer that mentions a count;
 - attaches at least one worker packet to the response.
 
-When no cassette is recorded and no ``ANTHROPIC_API_KEY`` is set, this test
+When no cassette is recorded and no ``OPENAI_API_KEY`` is set, this test
 skips cleanly via the conftest hook.
 """
 

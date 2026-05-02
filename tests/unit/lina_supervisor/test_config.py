@@ -12,31 +12,31 @@ from lina_supervisor.config import (
 
 
 @pytest.mark.unit
-def test_default_model_is_claude_sonnet_4_7() -> None:
-    cfg = SupervisorConfig(anthropic_api_key="sk-test")
-    assert cfg.model == "claude-sonnet-4-7"
+def test_default_model_is_gpt_4o() -> None:
+    cfg = SupervisorConfig(openai_api_key="sk-test")
+    assert cfg.model == "gpt-4o"
 
 
 @pytest.mark.unit
 def test_default_max_worker_calls_is_8() -> None:
-    cfg = SupervisorConfig(anthropic_api_key="sk-test")
+    cfg = SupervisorConfig(openai_api_key="sk-test")
     assert cfg.max_worker_calls == 8
 
 
 @pytest.mark.unit
 def test_resolve_config_from_env_overrides(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-env")
-    monkeypatch.setenv("LINA_SUPERVISOR_MODEL", "claude-haiku-9000")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-env")
+    monkeypatch.setenv("LINA_SUPERVISOR_MODEL", "gpt-4o-mini")
     monkeypatch.setenv("LINA_SUPERVISOR_MAX_WORKER_CALLS", "12")
     cfg = resolve_config()
-    assert cfg.anthropic_api_key == "sk-env"
-    assert cfg.model == "claude-haiku-9000"
+    assert cfg.openai_api_key == "sk-env"
+    assert cfg.model == "gpt-4o-mini"
     assert cfg.max_worker_calls == 12
 
 
 @pytest.mark.unit
-def test_resolve_config_requires_anthropic_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+def test_resolve_config_requires_openai_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     with pytest.raises(MissingApiKeyError):
         resolve_config()
 
@@ -45,7 +45,7 @@ def test_resolve_config_requires_anthropic_api_key(monkeypatch: pytest.MonkeyPat
 def test_resolve_config_reads_max_tokens_overrides(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-env")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-env")
     monkeypatch.setenv("LINA_SUPERVISOR_ROUTE_MAX_TOKENS", "1024")
     monkeypatch.setenv("LINA_SUPERVISOR_SYNTHESIZE_MAX_TOKENS", "2048")
     monkeypatch.setenv("LINA_SUPERVISOR_REQUEST_TIMEOUT_SECONDS", "30")

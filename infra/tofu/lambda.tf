@@ -82,14 +82,21 @@ resource "aws_security_group" "lambda" {
   }
 }
 
+# SANDBOX-ONLY: open Redshift to 0.0.0.0/0 on port 5439 so the chat Lambda
+# (which runs outside any VPC and thus picks up an unpredictable AWS-owned
+# outbound IP) can reach the workgroup. Authentication still requires the
+# Redshift admin password from Secrets Manager. Tighten before any production
+# deployment by either putting Lambda inside the VPC or restricting to known
+# AWS public IP ranges (Boto3 fetches these from
+# https://ip-ranges.amazonaws.com/ip-ranges.json).
 resource "aws_security_group_rule" "redshift_from_lambda" {
-  type                     = "ingress"
-  from_port                = 5439
-  to_port                  = 5439
-  protocol                 = "tcp"
-  source_security_group_id = aws_security_group.lambda.id
-  security_group_id        = aws_security_group.redshift.id
-  description              = "Chat Lambda to Redshift Serverless"
+  type              = "ingress"
+  from_port         = 5439
+  to_port           = 5439
+  protocol          = "tcp"
+  cidr_blocks       = ["0.0.0.0/0"]
+  security_group_id = aws_security_group.redshift.id
+  description       = "Sandbox: chat Lambda to Redshift (Lambda is outside VPC)"
 }
 
 # ---------------------------------------------------------------------------

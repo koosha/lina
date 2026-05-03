@@ -62,27 +62,42 @@ function Prose({ text, citations, onCitationClick }: ProseProps) {
   const blocks = parseBlocks(text);
   return (
     <div className="prose">
-      {blocks.map((b, i) =>
-        b.kind === "ul" ? (
-          <ul key={i}>
-            {b.items.map((item, j) => (
-              <li key={j}>{renderInline(item, citations, onCitationClick)}</li>
-            ))}
-          </ul>
-        ) : (
-          <p key={i}>{renderInline(b.text, citations, onCitationClick)}</p>
-        ),
-      )}
+      {blocks.map((b, i) => {
+        if (b.kind === "ul") {
+          return (
+            <ul key={i}>
+              {b.items.map((item, j) => (
+                <li key={j}>{renderInline(item, citations, onCitationClick)}</li>
+              ))}
+            </ul>
+          );
+        }
+        if (b.kind === "h") {
+          const Tag = (`h${Math.min(Math.max(b.level + 1, 2), 4)}` as "h2" | "h3" | "h4");
+          return (
+            <Tag key={i}>{renderInline(b.text, citations, onCitationClick)}</Tag>
+          );
+        }
+        return <p key={i}>{renderInline(b.text, citations, onCitationClick)}</p>;
+      })}
     </div>
   );
 }
 
-type Block = { kind: "p"; text: string } | { kind: "ul"; items: string[] };
+type Block =
+  | { kind: "p"; text: string }
+  | { kind: "ul"; items: string[] }
+  | { kind: "h"; level: number; text: string };
 
 function parseBlocks(text: string): Block[] {
   const blocks: Block[] = [];
   for (const para of text.split(/\n{2,}/g)) {
     const lines = para.split("\n");
+    const heading = lines[0].match(/^(#{1,6})\s+(.+)$/);
+    if (heading && lines.length === 1) {
+      blocks.push({ kind: "h", level: heading[1].length, text: heading[2] });
+      continue;
+    }
     const isBulletList = lines.length > 0 && lines.every((l) => /^\s*[-*]\s+/.test(l));
     if (isBulletList) {
       blocks.push({

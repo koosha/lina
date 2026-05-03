@@ -59,6 +59,30 @@
   border: 1px solid var(--line-softer);
   color: var(--ink-2);
 }
+.prose h2,
+.prose h3,
+.prose h4 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  margin: 12px 0 6px;
+  line-height: 1.25;
+}
+.prose h2 {
+  font-size: 17px;
+}
+.prose h3 {
+  font-size: 15.5px;
+}
+.prose h4 {
+  font-size: 14.5px;
+}
+.prose h2:first-child,
+.prose h3:first-child,
+.prose h4:first-child {
+  margin-top: 0;
+}
 
 /* Citation tag — matches design tokens. */
 .cite {

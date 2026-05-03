@@ -1,4 +1,4 @@
-import sampleQueriesJson from "../../../docs/sample-queries.json";
+import sampleQueriesJson from "../data/sample-queries.json";
 
 interface SampleQueryRaw {
   id: string;

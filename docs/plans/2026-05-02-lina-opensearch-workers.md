@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python 3.12, pydantic v2, opensearch-py, requests-aws4auth, structlog, click, Faker, testcontainers[opensearch], pytest, mypy, ruff.
 
-**Spec reference:** `docs/superpowers/specs/2026-05-02-lina-opensearch-workers-design.md`. Cross-reference `lina.md` §1, §2, §13.
+**Spec reference:** `docs/design/2026-05-02-lina-opensearch-workers-design.md`. Cross-reference `lina.md` §1, §2, §13.
 
 **Pattern reference:** This plan deliberately mirrors `2026-05-02-lina-redshift-worker.md` (Subsystem C). Where that plan covers SQL DDL+templates, this plan covers OpenSearch mappings+queries. Engineers familiar with C will recognize the shape.
 
@@ -546,7 +546,7 @@ def list_pending(*, client: Any, mappings_dir: Path) -> list[str]:
 - Create: `tests/unit/lina_users/test_template_people_filter.py`
 - Create: `tests/unit/lina_users/test_worker.py`
 
-This is the largest task in the plan. The implementer should use Subsystem C's `lina_redshift/templates/` and `worker.py` as a structural reference, replacing SQL with OpenSearch DSL. The implementer is encouraged to read [`docs/superpowers/specs/2026-05-02-lina-opensearch-workers-design.md`](../specs/2026-05-02-lina-opensearch-workers-design.md) §5 for the template + worker design. Key implementation guides:
+This is the largest task in the plan. The implementer should use Subsystem C's `lina_redshift/templates/` and `worker.py` as a structural reference, replacing SQL with OpenSearch DSL. The implementer is encouraged to read [`docs/design/2026-05-02-lina-opensearch-workers-design.md`](../specs/2026-05-02-lina-opensearch-workers-design.md) §5 for the template + worker design. Key implementation guides:
 
 **`packet.py`** subclasses `lina_core.packet.ResultPacket`/`ErrorPacket` with `source_engine="opensearch"` and `schema_name="corp_user_profiles_v1"` (mirror of `lina_redshift/packet.py`).
 

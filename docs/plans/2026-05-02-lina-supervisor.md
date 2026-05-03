@@ -10,7 +10,7 @@
 
 **Tech Stack:** Python 3.12, anthropic>=0.42, langgraph>=0.2, langchain-core, langchain-anthropic, pydantic v2, click, structlog, vcrpy + pytest-vcr (dev).
 
-**Spec reference:** `docs/superpowers/specs/2026-05-02-lina-supervisor-design.md`. Read §4–§10 for tool/graph/session details.
+**Spec reference:** `docs/design/2026-05-02-lina-supervisor-design.md`. Read §4–§10 for tool/graph/session details.
 
 **Pattern reference:** the worker plumbing patterns from C (and the OpenSearch dispatch from A/B) are reused here. The supervisor is a *consumer* of those workers — it never reaches into their templates directly.
 

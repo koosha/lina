@@ -6,7 +6,7 @@
 
 **Architecture:** Three new IaC modules — `infra/tofu/bootstrap/` (S3 + DynamoDB for state), `infra/tofu/shared/` (OIDC provider + IAM role for GH Actions), `infra/tofu/ci/` (the test backend itself: Redshift Serverless + OpenSearch). One GitHub Actions workflow at `.github/workflows/ci-integration.yml`. State migration from local to S3 for the existing `infra/tofu/` (sandbox) module.
 
-**Spec:** `docs/superpowers/specs/2026-05-03-lina-ci-integration-tests-design.md`. Read §3 file structure, §4 workflow topology, §5 IAM/OIDC, §6 test data lifecycle.
+**Spec:** `docs/design/2026-05-03-lina-ci-integration-tests-design.md`. Read §3 file structure, §4 workflow topology, §5 IAM/OIDC, §6 test data lifecycle.
 
 **Authorized minor deviations** (silent): UP035, UP037, RET504, N812 noqa.
 

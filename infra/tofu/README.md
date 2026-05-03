@@ -2,7 +2,7 @@
 
 This module provisions a demo-grade hosted sandbox for LINA on AWS account
 `417811547857` in `us-east-1`. The architecture is described in
-[`docs/superpowers/specs/2026-05-03-lina-aws-sandbox-design.md`](../../docs/superpowers/specs/2026-05-03-lina-aws-sandbox-design.md).
+[`docs/design/2026-05-03-lina-aws-sandbox-design.md`](../../docs/design/2026-05-03-lina-aws-sandbox-design.md).
 
 State is local to whoever runs `tofu apply` (no S3 backend in v1.1). Re-running
 from a fresh checkout requires importing or re-creating from scratch.

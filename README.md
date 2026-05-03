@@ -52,10 +52,10 @@ Each worker is independently usable as a library or CLI — see the per-subsyste
 
 | Subsystem | Worker | CLI | Backend | Templates | Design doc |
 |---|---|---|---|---|---|
-| **C** | `RedshiftWorker` | `lina-redshift` | Amazon Redshift Serverless (Postgres locally) | 6 | [redshift](./docs/superpowers/specs/2026-05-02-lina-redshift-worker-design.md) |
-| **A** | `UserSearchWorker` | `lina-users` | Amazon OpenSearch | 4 | [opensearch](./docs/superpowers/specs/2026-05-02-lina-opensearch-workers-design.md) |
-| **B** | `VendorSearchWorker` | `lina-vendors` | Amazon OpenSearch | 4 | [opensearch](./docs/superpowers/specs/2026-05-02-lina-opensearch-workers-design.md) |
-| **D** | LangGraph + OpenAI supervisor | `lina-chat` | A + B + C | — | [supervisor](./docs/superpowers/specs/2026-05-02-lina-supervisor-design.md) |
+| **C** | `RedshiftWorker` | `lina-redshift` | Amazon Redshift Serverless (Postgres locally) | 6 | [redshift](./docs/design/2026-05-02-lina-redshift-worker-design.md) |
+| **A** | `UserSearchWorker` | `lina-users` | Amazon OpenSearch | 4 | [opensearch](./docs/design/2026-05-02-lina-opensearch-workers-design.md) |
+| **B** | `VendorSearchWorker` | `lina-vendors` | Amazon OpenSearch | 4 | [opensearch](./docs/design/2026-05-02-lina-opensearch-workers-design.md) |
+| **D** | LangGraph + OpenAI supervisor | `lina-chat` | A + B + C | — | [supervisor](./docs/design/2026-05-02-lina-supervisor-design.md) |
 
 ---
 
@@ -192,7 +192,7 @@ packet = vendors.run(query_type="lawyer_search", params={"query": "privacy"}, ca
 print(packet.model_dump_json(by_alias=True, indent=2))
 ```
 
-The supervisor (`lina_supervisor`) wraps these three workers via `WorkerHub` + LangGraph. See [`docs/superpowers/specs/2026-05-02-lina-supervisor-design.md`](./docs/superpowers/specs/2026-05-02-lina-supervisor-design.md) for the full graph and tool schemas.
+The supervisor (`lina_supervisor`) wraps these three workers via `WorkerHub` + LangGraph. See [`docs/design/2026-05-02-lina-supervisor-design.md`](./docs/design/2026-05-02-lina-supervisor-design.md) for the full graph and tool schemas.
 
 ---
 
@@ -330,7 +330,7 @@ See §11/§12 of each design doc. Highlights:
 ```text
 lina/
 ├── lina.md                              # source data contract
-├── docs/superpowers/
+├── docs/
 │   ├── specs/                           # 3 design docs, one per subsystem cycle
 │   └── plans/                           # 3 implementation plans
 ├── src/

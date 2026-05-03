@@ -65,7 +65,7 @@ lina/
 │           └── README.md
 ├── deploy/
 │   └── ci-runbook.md                    # NEW — operator setup steps for first time
-└── docs/superpowers/
+└── docs/
     ├── specs/2026-05-03-lina-ci-integration-tests-design.md  # this doc
     └── plans/2026-05-03-lina-ci-integration-tests.md         # NEW
 ```

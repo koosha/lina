@@ -8,7 +8,7 @@
 
 **Tech Stack:** OpenTofu 1.11+, AWS provider 5.70+, Python 3.12 in Lambda container, boto3, openai, langgraph (already in the repo).
 
-**Spec:** `docs/superpowers/specs/2026-05-03-lina-aws-sandbox-design.md`. Read §3 file structure, §4 handler logic, §5 IaC layout, §6 runbook before each task.
+**Spec:** `docs/design/2026-05-03-lina-aws-sandbox-design.md`. Read §3 file structure, §4 handler logic, §5 IaC layout, §6 runbook before each task.
 
 **Authorized minor deviations** (silent):
 - UP035, UP037, RET504, N812 noqa, `result.stdout` for Click

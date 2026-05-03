@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python 3.12, pydantic v2, sqlglot, psycopg2-binary, structlog, click, Faker, python-ulid, pytest, pytest-postgresql, mypy, ruff.
 
-**Spec reference:** `docs/superpowers/specs/2026-05-02-lina-redshift-worker-design.md`. Cross-reference `lina.md` §3 + §13 for source spec.
+**Spec reference:** `docs/design/2026-05-02-lina-redshift-worker-design.md`. Cross-reference `lina.md` §3 + §13 for source spec.
 
 **Note on dependencies:** The spec lists `redshift-connector` as a runtime dep. For v1 (DSN-only, Q9 option a), `psycopg2-binary` connects to both Postgres and Redshift over the Postgres wire protocol; `redshift-connector` becomes necessary only when IAM auth lands (deferred). Plan installs `psycopg2-binary` only.
 
@@ -25,8 +25,8 @@ lina/
 ├── .gitignore
 ├── README.md
 ├── lina.md                              # existing
-├── docs/superpowers/specs/...            # existing
-├── docs/superpowers/plans/...            # this file
+├── docs/design/...            # existing
+├── docs/plans/...            # this file
 ├── src/lina_redshift/
 │   ├── __init__.py
 │   ├── connection.py                    # DSN factory
@@ -6444,7 +6444,7 @@ git commit -m "test(integration): add dialect parity checks against real Redshif
 
 Read-only Python worker that exposes a typed catalog of query templates over the
 `legal_matter_spend` schema in Amazon Redshift. First of four subsystems described
-in [`lina.md`](./lina.md). Design contract: [`docs/superpowers/specs/2026-05-02-lina-redshift-worker-design.md`](./docs/superpowers/specs/2026-05-02-lina-redshift-worker-design.md).
+in [`lina.md`](./lina.md). Design contract: [`docs/design/2026-05-02-lina-redshift-worker-design.md`](./docs/design/2026-05-02-lina-redshift-worker-design.md).
 
 ## Quickstart
 
@@ -6552,7 +6552,7 @@ See §11 of the design doc. Highlights:
 
 ## Project layout
 
-See [`docs/superpowers/specs/2026-05-02-lina-redshift-worker-design.md`](./docs/superpowers/specs/2026-05-02-lina-redshift-worker-design.md) §3.
+See [`docs/design/2026-05-02-lina-redshift-worker-design.md`](./docs/design/2026-05-02-lina-redshift-worker-design.md) §3.
 ```
 
 - [ ] **Step 2: Run final unit suite + lint + types**

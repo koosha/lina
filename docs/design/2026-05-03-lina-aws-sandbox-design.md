@@ -2,7 +2,7 @@
 
 **Status:** Approved for planning
 **Date:** 2026-05-03
-**Source:** Follow-up to v1.0.0 (Subsystems A + B + C + D) — `lina.md`, `docs/superpowers/specs/2026-05-02-*-design.md`
+**Source:** Follow-up to v1.0.0 (Subsystems A + B + C + D) — `lina.md`, `docs/design/2026-05-02-*-design.md`
 **Scope:** Provision a demo-grade hosted sandbox of the entire LINA stack on AWS (account `417811547857`, region `us-east-1`). Pre-load existing synthetic seed data so end-to-end demo queries work via a public HTTPS endpoint.
 
 This spec **inherits** all decisions from v1.0.0 design docs. The code itself does not change beyond a thin Lambda handler and an IaC module — no architectural reshaping.

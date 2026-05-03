@@ -7,6 +7,26 @@ re-run only the specific module they changed.
 All commands assume `aws --profile lina-sandbox` and the repo root as the
 working directory. OpenTofu 1.11.6 must be on `PATH`.
 
+> **Apple Silicon note.** If your Homebrew install is at `/usr/local/` (Intel
+> Homebrew running under Rosetta on an arm64 Mac), the brew-installed `tofu` is
+> x86_64 and the AWS provider plugin will hang at startup with `timeout while
+> waiting for plugin to start`. Two workarounds:
+>
+> 1. Install Apple Silicon Homebrew at `/opt/homebrew/` and reinstall:
+>    `arch -arm64 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`
+>    then `/opt/homebrew/bin/brew install opentofu`.
+> 2. Drop a native arm64 binary into your `PATH` ad-hoc:
+>    ```bash
+>    curl -L https://github.com/opentofu/opentofu/releases/download/v1.11.6/tofu_1.11.6_darwin_arm64.zip -o /tmp/tofu_arm64.zip
+>    cd /tmp && unzip -o tofu_arm64.zip && chmod +x tofu
+>    # Use /tmp/tofu instead of `tofu` in the commands below
+>    ```
+>
+> Verify with `tofu version` — should report `darwin_arm64`, not `darwin_amd64`.
+> If you also already had x86 provider caches, blow them away with
+> `find infra/tofu -name .terraform -type d -exec rm -rf {} +` and `rm
+> infra/tofu/**/.terraform.lock.hcl` before re-running `tofu init`.
+
 ---
 
 ## Step 1 — Apply the bootstrap module

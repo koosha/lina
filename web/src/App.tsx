@@ -3,7 +3,7 @@ import { TopBar } from "./components/TopBar";
 import { Landing } from "./pages/Landing";
 import { Answered } from "./pages/Answered";
 import { PassphraseGate } from "./pages/PassphraseGate";
-import { ask, AskError } from "./lib/api";
+import { ask, AskError, config as apiConfig } from "./lib/api";
 import { humanizeResultType, packetToSource } from "./lib/sources";
 import type { Citation, ResultPacket, UiMessage } from "./lib/types";
 import "./App.css";
@@ -107,7 +107,7 @@ export function App() {
 
   return (
     <div className="app">
-      <TopBar firstName={FIRST_NAME} />
+      <TopBar firstName={FIRST_NAME} userId={apiConfig.userId} />
       {showAnswered ? (
         <Answered
           messages={messages}

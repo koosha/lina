@@ -1,12 +1,33 @@
 .msg {
   display: flex;
   margin: 0 0 24px;
+  gap: 12px;
+  align-items: flex-start;
 }
 .msg--user {
   justify-content: flex-end;
 }
 .msg--assistant {
   justify-content: flex-start;
+}
+
+/* Lina avatar — small black circle with "L", mirrors the LINA badge in the
+   top bar so the brand mark sits next to every assistant message. */
+.msg__avatar {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  margin-top: 2px;
 }
 
 .msg__bubble {
@@ -82,6 +103,49 @@
 .prose h3:first-child,
 .prose h4:first-child {
   margin-top: 0;
+}
+
+/* Tables — render markdown pipe tables as a real grid. */
+.prose-table-wrap {
+  margin: 0 0 12px;
+  overflow-x: auto;
+  border: 1px solid var(--line-softer);
+  border-radius: var(--radius-md);
+  background: var(--paper);
+}
+.prose-table-wrap:last-child {
+  margin-bottom: 0;
+}
+.prose-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+.prose-table th,
+.prose-table td {
+  padding: 8px 12px;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--line-softer);
+  white-space: nowrap;
+}
+.prose-table thead th {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  background: var(--paper-2);
+  font-weight: 600;
+  border-bottom: 1px solid var(--line-soft);
+}
+.prose-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.prose-table tbody tr:hover {
+  background: var(--paper-2);
 }
 
 /* Citation tag — matches design tokens. */

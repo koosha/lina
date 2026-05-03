@@ -42,22 +42,6 @@
   gap: 18px;
 }
 
-.topbar__help {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 13px;
-  color: var(--ink-2);
-  text-decoration: none;
-  padding: 6px 4px;
-  border-radius: 4px;
-  transition: color var(--duration-fast);
-}
-.topbar__help:hover {
-  color: var(--accent);
-  text-decoration: none;
-}
-
 .topbar__avatar {
   width: 32px;
   height: 32px;
@@ -71,6 +55,56 @@
   font-family: var(--font-display);
   font-weight: 600;
   font-size: 12px;
+}
+.topbar__avatar--btn {
+  cursor: pointer;
+  padding: 0;
+  transition: border-color var(--duration-fast), color var(--duration-fast);
+}
+.topbar__avatar--btn:hover,
+.topbar__avatar--btn[aria-expanded="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.topbar__user {
+  position: relative;
+  display: inline-flex;
+}
+
+.topbar__user-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 240px;
+  background: var(--paper);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-md);
+  box-shadow: 0 10px 30px rgba(20, 23, 26, 0.08);
+  padding: 12px 14px;
+  z-index: 5;
+}
+
+.topbar__user-name {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.topbar__user-id {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--ink-3);
+  word-break: break-all;
+}
+
+.topbar__user-note {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line-softer);
+  font-size: 11.5px;
+  color: var(--ink-3);
 }
 
 @media (max-width: 720px) {

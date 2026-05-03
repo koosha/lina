@@ -16,3 +16,10 @@ build/
 
 # Claude Code session-local state (per-machine, not part of the project)
 .claude/
+
+# OpenTofu / Terraform local working state
+infra/**/.terraform/
+infra/**/.terraform.lock.hcl
+infra/**/tfplan.bin
+infra/**/*.tfstate
+infra/**/*.tfstate.backup

@@ -8,5 +8,5 @@ CREATE TABLE IF NOT EXISTS bridge_matter_person (
     active_flag boolean NOT NULL,
     PRIMARY KEY (matter_id, person_id, person_source, person_role)
 )
-DISTKEY (matter_id)
+DISTSTYLE KEY (matter_id)
 SORTKEY (matter_id, person_source);

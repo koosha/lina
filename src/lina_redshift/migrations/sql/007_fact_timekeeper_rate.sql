@@ -13,5 +13,5 @@ CREATE TABLE IF NOT EXISTS fact_timekeeper_rate (
     approved_at timestamp,
     created_at timestamp NOT NULL
 )
-DISTKEY (timekeeper_id)
+DISTSTYLE KEY (timekeeper_id)
 SORTKEY (timekeeper_id, effective_start_date);

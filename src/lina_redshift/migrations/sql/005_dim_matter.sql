@@ -27,5 +27,5 @@ CREATE TABLE IF NOT EXISTS dim_matter (
     updated_at timestamp NOT NULL,
     source_system varchar NOT NULL
 )
-DISTKEY (matter_id)
+DISTSTYLE KEY (matter_id)
 SORTKEY (matter_status, open_date);

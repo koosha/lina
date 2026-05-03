@@ -7,5 +7,5 @@ CREATE TABLE IF NOT EXISTS bridge_matter_vendor (
     active_flag boolean NOT NULL,
     PRIMARY KEY (matter_id, vendor_id, vendor_role)
 )
-DISTKEY (matter_id)
+DISTSTYLE KEY (matter_id)
 SORTKEY (matter_id, vendor_id);

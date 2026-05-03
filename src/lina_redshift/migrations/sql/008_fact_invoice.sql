@@ -25,5 +25,5 @@ CREATE TABLE IF NOT EXISTS fact_invoice (
     created_at timestamp NOT NULL,
     updated_at timestamp NOT NULL
 )
-DISTKEY (matter_id)
+DISTSTYLE KEY (matter_id)
 SORTKEY (invoice_date, vendor_id);

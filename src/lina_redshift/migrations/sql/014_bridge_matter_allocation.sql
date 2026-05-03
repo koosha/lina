@@ -9,5 +9,5 @@ CREATE TABLE IF NOT EXISTS bridge_matter_allocation (
     active_flag boolean NOT NULL,
     PRIMARY KEY (matter_id, legal_entity_id, cost_center_id, gl_account, effective_start_date)
 )
-DISTKEY (matter_id)
+DISTSTYLE KEY (matter_id)
 SORTKEY (matter_id, effective_start_date);

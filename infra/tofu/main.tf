@@ -1,6 +1,14 @@
 terraform {
   required_version = ">= 1.11"
 
+  backend "s3" {
+    bucket         = "lina-tofu-state-417811547857"
+    key            = "sandbox/terraform.tfstate"
+    region         = "us-east-1"
+    dynamodb_table = "lina-tofu-locks"
+    encrypt        = true
+  }
+
   required_providers {
     aws = {
       source  = "hashicorp/aws"

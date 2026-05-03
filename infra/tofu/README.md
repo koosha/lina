@@ -4,8 +4,31 @@ This module provisions a demo-grade hosted sandbox for LINA on AWS account
 `417811547857` in `us-east-1`. The architecture is described in
 [`docs/design/2026-05-03-lina-aws-sandbox-design.md`](../../docs/design/2026-05-03-lina-aws-sandbox-design.md).
 
-State is local to whoever runs `tofu apply` (no S3 backend in v1.1). Re-running
-from a fresh checkout requires importing or re-creating from scratch.
+State is stored in the shared S3 backend `lina-tofu-state-417811547857` under
+key `sandbox/terraform.tfstate`, with DynamoDB-backed locks in
+`lina-tofu-locks`. The backend resources are owned by the
+[`infra/tofu/bootstrap/`](./bootstrap/) module — operators run that
+once before any other module.
+
+## One-time state migration (v1.1.x → v1.2.0)
+
+The v1.1.0 sandbox provisioned this module with **local** OpenTofu state.
+Migrating to S3 is a one-time, non-destructive operation: `tofu state push`
+reads the existing local state and uploads it. No resources are recreated.
+
+```bash
+# 1. Apply the bootstrap module first (creates the bucket + lock table).
+tofu -chdir=infra/tofu/bootstrap init
+tofu -chdir=infra/tofu/bootstrap apply
+
+# 2. Migrate the sandbox state. OpenTofu detects the new backend block
+#    and prompts to copy the existing tfstate into the S3 bucket.
+tofu -chdir=infra/tofu init -migrate-state
+```
+
+After migration, `infra/tofu/terraform.tfstate` is no longer authoritative
+(operators can delete or archive it). Subsequent `tofu plan` / `apply` runs
+read from S3 and acquire the DynamoDB lock.
 
 ## Prerequisites
 

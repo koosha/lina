@@ -6,6 +6,8 @@ from dataclasses import dataclass
 
 from psycopg2.extensions import connection as PgConnection  # noqa: N812
 
+from lina_redshift.seed import _on_conflict_clause
+
 
 @dataclass(frozen=True)
 class BillingCode:
@@ -89,13 +91,14 @@ BILLING_CODES: list[BillingCode] = [*_TASK_CODES, *_ACTIVITY_CODES, *_EXPENSE_CO
 
 def load_billing_codes(connection: PgConnection) -> None:
     """Insert billing codes idempotently via UPSERT-style ON CONFLICT."""
+    on_conflict = _on_conflict_clause(connection, "billing_code_id")
     with connection.cursor() as cur:
         for c in BILLING_CODES:
             cur.execute(
                 "INSERT INTO dim_billing_code (billing_code_id, code, code_type, "
                 "code_set, description, active_status, created_at, updated_at) "
-                "VALUES (%s, %s, %s, %s, %s, 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) "
-                "ON CONFLICT (billing_code_id) DO NOTHING",
+                "VALUES (%s, %s, %s, %s, %s, 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+                f"{on_conflict}",
                 (c.billing_code_id, c.code, c.code_type, c.code_set, c.description),
             )
     connection.commit()

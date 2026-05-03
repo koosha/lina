@@ -44,10 +44,34 @@ _MATERIALIZED_VIEWS: list[str] = [
 ]
 
 
+def _is_redshift(connection: PgConnection) -> bool:
+    """Return True when the connection is to Amazon Redshift (PG 8.0.2 wire-compat)."""
+    server_version = getattr(connection, "server_version", 0)
+    return server_version < 90000
+
+
+def _on_conflict_clause(connection: PgConnection, conflict_target: str) -> str:
+    """Return ``ON CONFLICT (col) DO NOTHING`` on Postgres, empty string on Redshift.
+
+    Redshift's PRIMARY KEY constraints are informational only — duplicate inserts
+    silently succeed and create rows. Operators avoid this by always running
+    ``seed --reset`` (which TRUNCATEs first) for a fresh load.
+    """
+    if _is_redshift(connection):
+        return ""
+    return f" ON CONFLICT ({conflict_target}) DO NOTHING"
+
+
+def _truncate_suffix(connection: PgConnection) -> str:
+    """Return ``' CASCADE'`` on Postgres, empty string on Redshift."""
+    return "" if _is_redshift(connection) else " CASCADE"
+
+
 def _truncate_all(connection: PgConnection) -> None:
     with connection.cursor() as cur:
+        suffix = _truncate_suffix(connection)
         for table in _TRUNCATE_ORDER:
-            cur.execute(f"TRUNCATE {table} CASCADE")
+            cur.execute(f"TRUNCATE {table}{suffix}")
     connection.commit()
 
 

@@ -8,6 +8,8 @@ from decimal import Decimal
 
 from psycopg2.extensions import connection as PgConnection  # noqa: N812
 
+from lina_redshift.seed import _on_conflict_clause
+
 
 @dataclass(frozen=True)
 class LegalEntity:
@@ -576,21 +578,29 @@ NAMED_LINE_ITEMS: list[LineItem] = [
 
 def load_named_entities(connection: PgConnection) -> None:
     """Insert all named entities idempotently."""
+    legal_entity_oc = _on_conflict_clause(connection, "legal_entity_id")
+    cost_center_oc = _on_conflict_clause(connection, "cost_center_id")
+    vendor_oc = _on_conflict_clause(connection, "vendor_id")
+    matter_oc = _on_conflict_clause(connection, "matter_id")
+    timekeeper_oc = _on_conflict_clause(connection, "timekeeper_id")
+    rate_oc = _on_conflict_clause(connection, "rate_id")
+    invoice_oc = _on_conflict_clause(connection, "invoice_id")
+    line_item_oc = _on_conflict_clause(connection, "invoice_line_item_id")
     with connection.cursor() as cur:
         for e in NAMED_LEGAL_ENTITIES:
             cur.execute(
                 "INSERT INTO dim_legal_entity (legal_entity_id, legal_entity_name, "
                 "country_code, entity_status, created_at, updated_at) VALUES "
-                "(%s, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) "
-                "ON CONFLICT (legal_entity_id) DO NOTHING",
+                "(%s, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+                f"{legal_entity_oc}",
                 (e.legal_entity_id, e.legal_entity_name, e.country_code, e.entity_status),
             )
         for cc in NAMED_COST_CENTERS:
             cur.execute(
                 "INSERT INTO dim_cost_center (cost_center_id, cost_center_name, "
                 "business_unit, department, active_status, created_at, updated_at) VALUES "
-                "(%s, %s, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) "
-                "ON CONFLICT (cost_center_id) DO NOTHING",
+                "(%s, %s, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+                f"{cost_center_oc}",
                 (
                     cc.cost_center_id,
                     cc.cost_center_name,
@@ -604,8 +614,8 @@ def load_named_entities(connection: PgConnection) -> None:
                 "INSERT INTO dim_vendor (vendor_id, vendor_name, vendor_type, vendor_status, "
                 "country_code, default_currency_code, preferred_panel_flag, "
                 "created_at, updated_at, source_system) VALUES "
-                "(%s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, %s) "
-                "ON CONFLICT (vendor_id) DO NOTHING",
+                "(%s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, %s)"
+                f"{vendor_oc}",
                 (
                     v.vendor_id,
                     v.vendor_name,
@@ -625,8 +635,8 @@ def load_named_entities(connection: PgConnection) -> None:
                 "matter_owner_user_id, budget_amount, budget_currency_code, "
                 "created_at, updated_at, source_system) VALUES "
                 "(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, "
-                "CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, %s) "
-                "ON CONFLICT (matter_id) DO NOTHING",
+                "CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, %s)"
+                f"{matter_oc}",
                 (
                     m.matter_id,
                     m.client_matter_id,
@@ -651,8 +661,8 @@ def load_named_entities(connection: PgConnection) -> None:
                 "INSERT INTO dim_timekeeper (timekeeper_id, vendor_id, timekeeper_name, "
                 "timekeeper_classification, years_of_experience, office_country_code, "
                 "active_status, created_at, updated_at) VALUES "
-                "(%s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) "
-                "ON CONFLICT (timekeeper_id) DO NOTHING",
+                "(%s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+                f"{timekeeper_oc}",
                 (
                     t.timekeeper_id,
                     t.vendor_id,
@@ -668,8 +678,8 @@ def load_named_entities(connection: PgConnection) -> None:
                 "INSERT INTO fact_timekeeper_rate (rate_id, timekeeper_id, vendor_id, "
                 "rate_type, hourly_rate, currency_code, effective_start_date, "
                 "effective_end_date, approval_status, created_at) VALUES "
-                "(%s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP) "
-                "ON CONFLICT (rate_id) DO NOTHING",
+                "(%s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)"
+                f"{rate_oc}",
                 (
                     r.rate_id,
                     r.timekeeper_id,
@@ -690,8 +700,8 @@ def load_named_entities(connection: PgConnection) -> None:
                 "expense_total_amount, approved_amount, paid_amount, ledes_format, "
                 "created_at, updated_at) VALUES "
                 "(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, "
-                "CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) "
-                "ON CONFLICT (invoice_id) DO NOTHING",
+                "CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+                f"{invoice_oc}",
                 (
                     inv.invoice_id,
                     inv.invoice_number,
@@ -717,8 +727,8 @@ def load_named_entities(connection: PgConnection) -> None:
                 "units, unit_rate, line_item_total_amount, currency_code, usd_amount, "
                 "fx_rate_to_usd, billing_guideline_flag, created_at) VALUES "
                 "(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, "
-                "CURRENT_TIMESTAMP) "
-                "ON CONFLICT (invoice_line_item_id) DO NOTHING",
+                "CURRENT_TIMESTAMP)"
+                f"{line_item_oc}",
                 (
                     li.invoice_line_item_id,
                     li.invoice_id,

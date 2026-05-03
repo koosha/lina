@@ -10,6 +10,7 @@ from decimal import Decimal
 from faker import Faker
 from psycopg2.extensions import connection as PgConnection  # noqa: N812
 
+from lina_redshift.seed import _on_conflict_clause
 from lina_redshift.seed.named_entities import (
     Invoice,
     LineItem,
@@ -252,8 +253,14 @@ def _random_date(rng: random.Random, start: date, end: date) -> date:
 
 
 def load_bulk_generated(connection: PgConnection) -> None:
-    """Generate the bulk seed and insert. Idempotent via ON CONFLICT."""
+    """Generate the bulk seed and insert. Idempotent via ON CONFLICT on Postgres."""
     seed = generate_seed()
+    vendor_oc = _on_conflict_clause(connection, "vendor_id")
+    timekeeper_oc = _on_conflict_clause(connection, "timekeeper_id")
+    rate_oc = _on_conflict_clause(connection, "rate_id")
+    matter_oc = _on_conflict_clause(connection, "matter_id")
+    invoice_oc = _on_conflict_clause(connection, "invoice_id")
+    line_item_oc = _on_conflict_clause(connection, "invoice_line_item_id")
     with connection.cursor() as cur:
         for v in seed.vendors:
             cur.execute(
@@ -261,7 +268,8 @@ def load_bulk_generated(connection: PgConnection) -> None:
                 "vendor_status, country_code, default_currency_code, "
                 "preferred_panel_flag, created_at, updated_at, source_system) "
                 "VALUES (%s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, "
-                "CURRENT_TIMESTAMP, %s) ON CONFLICT (vendor_id) DO NOTHING",
+                "CURRENT_TIMESTAMP, %s)"
+                f"{vendor_oc}",
                 (
                     v.vendor_id,
                     v.vendor_name,
@@ -278,8 +286,8 @@ def load_bulk_generated(connection: PgConnection) -> None:
                 "INSERT INTO dim_timekeeper (timekeeper_id, vendor_id, timekeeper_name, "
                 "timekeeper_classification, years_of_experience, office_country_code, "
                 "active_status, created_at, updated_at) VALUES "
-                "(%s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) "
-                "ON CONFLICT (timekeeper_id) DO NOTHING",
+                "(%s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+                f"{timekeeper_oc}",
                 (
                     t.timekeeper_id,
                     t.vendor_id,
@@ -295,8 +303,8 @@ def load_bulk_generated(connection: PgConnection) -> None:
                 "INSERT INTO fact_timekeeper_rate (rate_id, timekeeper_id, vendor_id, "
                 "rate_type, hourly_rate, currency_code, effective_start_date, "
                 "effective_end_date, approval_status, created_at) VALUES "
-                "(%s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP) "
-                "ON CONFLICT (rate_id) DO NOTHING",
+                "(%s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)"
+                f"{rate_oc}",
                 (
                     r.rate_id,
                     r.timekeeper_id,
@@ -317,8 +325,8 @@ def load_bulk_generated(connection: PgConnection) -> None:
                 "matter_owner_user_id, budget_amount, budget_currency_code, "
                 "created_at, updated_at, source_system) VALUES "
                 "(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, "
-                "CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, %s) "
-                "ON CONFLICT (matter_id) DO NOTHING",
+                "CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, %s)"
+                f"{matter_oc}",
                 (
                     m.matter_id,
                     m.client_matter_id,
@@ -346,8 +354,8 @@ def load_bulk_generated(connection: PgConnection) -> None:
                 "expense_total_amount, approved_amount, paid_amount, ledes_format, "
                 "created_at, updated_at) VALUES "
                 "(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, "
-                "CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) "
-                "ON CONFLICT (invoice_id) DO NOTHING",
+                "CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+                f"{invoice_oc}",
                 (
                     inv.invoice_id,
                     inv.invoice_number,
@@ -373,8 +381,8 @@ def load_bulk_generated(connection: PgConnection) -> None:
                 "units, unit_rate, line_item_total_amount, currency_code, usd_amount, "
                 "fx_rate_to_usd, billing_guideline_flag, created_at) VALUES "
                 "(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, "
-                "CURRENT_TIMESTAMP) "
-                "ON CONFLICT (invoice_line_item_id) DO NOTHING",
+                "CURRENT_TIMESTAMP)"
+                f"{line_item_oc}",
                 (
                     li.invoice_line_item_id,
                     li.invoice_id,

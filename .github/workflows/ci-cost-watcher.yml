@@ -1,0 +1,60 @@
+name: ci-cost-watcher
+
+on:
+  schedule:
+    # 12:00 UTC daily
+    - cron: '0 12 * * *'
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+  issues: write
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::417811547857:role/lina-ci-runner
+          aws-region: us-east-1
+
+      - name: Compute yesterday's lina-ci spend
+        id: spend
+        run: |
+          start=$(date -u -d 'yesterday' '+%Y-%m-%d')
+          end=$(date -u '+%Y-%m-%d')
+
+          response=$(aws ce get-cost-and-usage \
+            --time-period "Start=$start,End=$end" \
+            --granularity DAILY \
+            --metrics UnblendedCost \
+            --filter '{"Tags":{"Key":"Environment","Values":["ci"]}}' \
+            --output json)
+
+          amount=$(echo "$response" | python3 -c 'import json,sys; r=json.load(sys.stdin); rows=r.get("ResultsByTime",[]); print(rows[0]["Total"]["UnblendedCost"]["Amount"] if rows else "0")')
+
+          echo "amount=$amount" >> "$GITHUB_OUTPUT"
+          echo "start=$start" >> "$GITHUB_OUTPUT"
+          echo "lina-ci spend $start: $amount USD"
+
+      - name: Open issue if spend > $5
+        if: ${{ steps.spend.outputs.amount != '' }}
+        env:
+          AMOUNT: ${{ steps.spend.outputs.amount }}
+          PERIOD: ${{ steps.spend.outputs.start }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          over=$(python3 -c 'import os; print(1 if float(os.environ["AMOUNT"]) > 5.0 else 0)')
+          if [ "$over" = "1" ]; then
+            gh issue create \
+              --title "lina-ci spend anomaly: \$$AMOUNT on $PERIOD" \
+              --body "$(printf 'Cost Explorer reports %s USD on Environment=ci tagged resources for %s, exceeding the $5/day watch threshold. Investigate runaway resources or workflow loops.' "$AMOUNT" "$PERIOD")" \
+              --label cost-anomaly
+          else
+            echo "Spend within threshold — no issue opened."
+          fi

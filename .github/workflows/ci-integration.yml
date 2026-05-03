@@ -1,0 +1,72 @@
+name: integration-tests
+
+on:
+  pull_request:
+    paths:
+      - 'src/lina_redshift/migrations/sql/**'
+      - 'src/lina_users/templates/**'
+      - 'src/lina_vendors/templates/**'
+      - 'src/lina_redshift/templates/**'
+      - 'src/lina_supervisor/templates/**'
+      - 'src/lina_users/seed/**'
+      - 'src/lina_vendors/seed/**'
+      - 'src/lina_redshift/seed/**'
+      - 'src/lina_supervisor/seed/**'
+      - 'src/lina_users/worker.py'
+      - 'src/lina_vendors/worker.py'
+      - 'src/lina_redshift/worker.py'
+      - 'src/lina_supervisor/**'
+      - 'tests/integration/**'
+      - 'infra/tofu/**'
+      - 'pyproject.toml'
+      - 'uv.lock'
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: integration-${{ github.head_ref || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::417811547857:role/lina-ci-runner
+          aws-region: us-east-1
+
+      - uses: astral-sh/setup-uv@v3
+        with:
+          version: '0.8.13'
+
+      - name: Install dependencies
+        run: uv sync --extra dev
+
+      - name: Resolve env vars from outputs / secrets
+        run: |
+          echo "LINA_REDSHIFT_DSN=$(./scripts/ci-redshift-dsn.sh)" >> "$GITHUB_ENV"
+          echo "LINA_OPENSEARCH_HOST=$(./scripts/ci-opensearch-host.sh)" >> "$GITHUB_ENV"
+          echo "LINA_OPENSEARCH_AUTH=aws_sigv4" >> "$GITHUB_ENV"
+          echo "LINA_AWS_REGION=us-east-1" >> "$GITHUB_ENV"
+
+      - name: Reset and seed CI environment
+        run: |
+          uv run lina-redshift --target redshift migrate up
+          uv run lina-redshift --target redshift seed --reset
+          uv run lina-users indices apply
+          uv run lina-users seed --reset
+          uv run lina-vendors indices apply
+          uv run lina-vendors seed --reset
+
+      - name: Run integration suite
+        run: uv run pytest -m integration -v --tb=short
+
+      - name: Run unit suite (sanity)
+        run: uv run pytest -m unit -q

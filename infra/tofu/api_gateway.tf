@@ -3,6 +3,17 @@ resource "aws_apigatewayv2_api" "this" {
   name          = "${local.name_prefix}-api"
   protocol_type = "HTTP"
   description   = "LINA sandbox public chat endpoint"
+
+  # CORS for the browser-based sandbox UI. The `x-api-key` header is required
+  # on every request, so the preflight must allow it explicitly. Origins are
+  # configurable via var.cors_allowed_origins; defaults to "*" for sandbox.
+  cors_configuration {
+    allow_origins  = var.cors_allowed_origins
+    allow_methods  = ["POST", "OPTIONS"]
+    allow_headers  = ["content-type", "x-api-key"]
+    expose_headers = []
+    max_age        = 300
+  }
 }
 
 resource "aws_cloudwatch_log_group" "api_gateway" {

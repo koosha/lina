@@ -43,3 +43,14 @@ variable "image_tag" {
   type        = string
   default     = "v1.1.0"
 }
+
+variable "cors_allowed_origins" {
+  description = <<EOT
+Origins permitted to call POST /ask from a browser. Defaults to "*" so the
+sandbox UI can be served from any host (S3 bucket website, Vercel, local
+preview). Tighten to the specific UI origin (e.g. ["https://lina.example.com"])
+once a permanent host is chosen.
+EOT
+  type        = list(string)
+  default     = ["*"]
+}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { TopBar } from "./components/TopBar";
 import { Landing } from "./pages/Landing";
 import { Answered } from "./pages/Answered";
@@ -21,7 +21,23 @@ export function App() {
     }
   });
 
-  const [messages, setMessages] = useState<UiMessage[]>([]);
+  // `messages` is the visible state. `messagesRef` keeps a snapshot that
+  // survives Back navigation so Forward can restore the chat. When the user
+  // clears the chat via the New chat button we wipe the ref too so a stale
+  // chat doesn't reappear.
+  const [messages, setMessagesState] = useState<UiMessage[]>([]);
+  const messagesRef = useRef<UiMessage[]>([]);
+  const setMessages = useCallback(
+    (m: UiMessage[] | ((prev: UiMessage[]) => UiMessage[])) => {
+      setMessagesState((prev) => {
+        const next = typeof m === "function" ? m(prev) : m;
+        messagesRef.current = next;
+        return next;
+      });
+    },
+    [],
+  );
+
   const [pendingChip, setPendingChip] = useState<string | undefined>(undefined);
 
   // Reset chip echo so the same chip can be re-clicked.
@@ -32,11 +48,18 @@ export function App() {
     }
   }, [pendingChip]);
 
-  // Browser back from the answered state → return to landing. We push a
-  // history entry on the first submission so a single back press undoes it.
+  // Browser back/forward navigation between landing and answered states.
+  // Forward into a chat entry restores from the ref; back to the initial
+  // entry clears the visible messages but keeps the ref so a subsequent
+  // Forward can restore them.
   useEffect(() => {
-    function onPop() {
-      setMessages([]);
+    function onPop(e: PopStateEvent) {
+      const isChatState = !!(e.state && (e.state as { linaChat?: boolean }).linaChat);
+      if (isChatState && messagesRef.current.length > 0) {
+        setMessagesState(messagesRef.current);
+      } else {
+        setMessagesState([]);
+      }
     }
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
@@ -92,8 +115,11 @@ export function App() {
   );
 
   function handleNewChat() {
-    setMessages([]);
-    // Drop the pushed history entry too so Back from landing leaves the app.
+    // Wipe both the visible state and the snapshot so a Forward press after
+    // Back doesn't resurrect the cleared conversation.
+    messagesRef.current = [];
+    setMessagesState([]);
+    // Drop the chat entry from history so Back from landing leaves the app.
     if (window.history.state && (window.history.state as { linaChat?: boolean }).linaChat) {
       window.history.back();
     }
@@ -126,34 +152,49 @@ export function App() {
 }
 
 function packetsToCitations(packets: ResultPacket[]): Citation[] {
-  // Dedupe by (source.id, result_type). The supervisor often retries the same
-  // template (call → fail → retry with better params) and we don't want the
-  // user to see five "Matter Lookup" cards for what they perceive as one
-  // lookup. Keep the first occurrence's index, take the highest non-zero
-  // row_count and the first non-empty record_url across duplicates.
-  const merged = new Map<string, ResultPacket & { _firstIndex: number }>();
+  // Dedupe by source group (Matter & Spend / User Profiles / Outside Counsel).
+  // At most three cards regardless of how many tool calls the supervisor
+  // made. Aggregate row_count across all packets in the group; collect the
+  // distinct result_types so the card label can show what was looked up.
+  interface Bucket {
+    firstIndex: number;
+    source: ReturnType<typeof packetToSource>;
+    resultTypes: Set<string>;
+    rowCount: number;
+    recordUrl?: string;
+  }
+  const buckets = new Map<string, Bucket>();
   packets.forEach((p, i) => {
-    const key = `${packetToSource(p).id}::${p.result_type || ""}`;
-    const existing = merged.get(key);
+    const source = packetToSource(p);
+    const existing = buckets.get(source.id);
+    const rows = p.row_count ?? 0;
     if (!existing) {
-      merged.set(key, { ...p, _firstIndex: i });
+      buckets.set(source.id, {
+        firstIndex: i,
+        source,
+        resultTypes: new Set(p.result_type ? [p.result_type] : []),
+        rowCount: rows,
+        recordUrl: p.record_url,
+      });
       return;
     }
-    const existingRows = existing.row_count ?? 0;
-    const newRows = p.row_count ?? 0;
-    if (newRows > existingRows) existing.row_count = newRows;
-    if (!existing.record_url && p.record_url) existing.record_url = p.record_url;
+    if (p.result_type) existing.resultTypes.add(p.result_type);
+    existing.rowCount += rows;
+    if (!existing.recordUrl && p.record_url) existing.recordUrl = p.record_url;
   });
-  return Array.from(merged.values())
-    .sort((a, b) => a._firstIndex - b._firstIndex)
-    .map((p, i) => ({
-      index: i + 1,
-      source: packetToSource(p),
-      label:
-        humanizeResultType(p.result_type) +
-        (p.row_count && p.row_count > 0
-          ? ` · ${p.row_count} record${p.row_count === 1 ? "" : "s"}`
-          : ""),
-      recordUrl: p.record_url,
-    }));
+  return Array.from(buckets.values())
+    .sort((a, b) => a.firstIndex - b.firstIndex)
+    .map((b, i) => {
+      const types = Array.from(b.resultTypes).map(humanizeResultType);
+      const typeLabel = types.length === 0 ? "" : types.join(", ");
+      const countLabel =
+        b.rowCount > 0 ? `${b.rowCount} record${b.rowCount === 1 ? "" : "s"}` : "";
+      const label = [typeLabel, countLabel].filter(Boolean).join(" · ");
+      return {
+        index: i + 1,
+        source: b.source,
+        label,
+        recordUrl: b.recordUrl,
+      };
+    });
 }

@@ -17,10 +17,15 @@ export function Answered({ messages, onSubmit, onNewChat }: AnsweredProps) {
   const [highlighted, setHighlighted] = useState<number | null>(null);
   const threadRef = useRef<HTMLDivElement | null>(null);
 
-  // Aggregate all citations across answered assistant messages, in answer order.
-  const allCitations: Citation[] = messages
-    .filter((m) => m.role === "assistant" && !m.pending && m.citations)
-    .flatMap((m) => m.citations ?? []);
+  // Renumber citations sequentially across the whole conversation. Each
+  // message's `packetsToCitations` numbers them 1..N within that message;
+  // when we flatten into the drawer we want a single 1..M sequence so two
+  // assistant messages with one citation each surface as cards 1 and 2,
+  // not two cards both labeled 1.
+  const renumbered = renumberCitationsAcrossMessages(messages);
+  const allCitations: Citation[] = renumbered.flatMap(
+    (m) => (m.role === "assistant" && !m.pending && m.citations ? m.citations : []),
+  );
 
   const isPending = messages.some((m) => m.pending);
 
@@ -49,7 +54,7 @@ export function Answered({ messages, onSubmit, onNewChat }: AnsweredProps) {
         </div>
 
         <div className="answered__thread" ref={threadRef}>
-          {messages.map((m) =>
+          {renumbered.map((m) =>
             m.role === "user" ? (
               <UserMsg key={m.id} text={m.text} />
             ) : (
@@ -72,4 +77,16 @@ export function Answered({ messages, onSubmit, onNewChat }: AnsweredProps) {
       <CitationsDrawer citations={allCitations} highlightedIndex={highlighted} />
     </div>
   );
+}
+
+function renumberCitationsAcrossMessages(messages: UiMessage[]): UiMessage[] {
+  let running = 0;
+  return messages.map((m) => {
+    if (m.role !== "assistant" || !m.citations || m.citations.length === 0) return m;
+    const next: Citation[] = m.citations.map((c) => {
+      running += 1;
+      return { ...c, index: running };
+    });
+    return { ...m, citations: next };
+  });
 }

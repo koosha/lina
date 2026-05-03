@@ -57,9 +57,7 @@ export function AssistantMsg({ message, onCitationClick }: AssistantMsgProps) {
       <LinaAvatar />
       <div className="msg__body">
         <Prose text={message.text} citations={message.citations} onCitationClick={onCitationClick} />
-        {message.citations && message.citations.length > 0 && (
-          <FeedbackBar copyText={message.text} />
-        )}
+        <FeedbackBar copyText={message.text} />
       </div>
     </div>
   );
@@ -291,17 +289,36 @@ function splitPipeRow(line: string): string[] {
     .map((c) => c.trim());
 }
 
+// Map a source-name tag to the citation that cards it. Lower-case so we
+// accept both `[matter]` and `[Matter]` from the LLM.
+const TAG_TO_SOURCE_ID: Record<string, "matters" | "people" | "counsel"> = {
+  matter: "matters",
+  matters: "matters",
+  "matter & spend": "matters",
+  "matter and spend": "matters",
+  spend: "matters",
+  people: "people",
+  "user profiles": "people",
+  users: "people",
+  user: "people",
+  counsel: "counsel",
+  "outside counsel": "counsel",
+  vendor: "counsel",
+  vendors: "counsel",
+};
+
 function renderInline(
   text: string,
   citations: Citation[] | undefined,
   onCitationClick: ((i: number) => void) | undefined,
 ) {
-  // Tokenize on citations, bold (**…**), and inline code (`…`).
-  const parts = text.split(/(\[\d+\]|\*\*[^*\n]+?\*\*|`[^`\n]+?`)/g);
+  // Tokenize on numeric citations [N], source-name citations [matter] etc.,
+  // bold (**…**), and inline code (`…`).
+  const parts = text.split(/(\[[A-Za-z][\w &]*?\]|\[\d+\]|\*\*[^*\n]+?\*\*|`[^`\n]+?`)/g);
   return parts.map((p, i) => {
-    const cite = p.match(/^\[(\d+)\]$/);
-    if (cite && citations) {
-      const num = Number(cite[1]);
+    const numCite = p.match(/^\[(\d+)\]$/);
+    if (numCite && citations) {
+      const num = Number(numCite[1]);
       const found = citations.find((c) => c.index === num);
       if (found) {
         return (
@@ -315,6 +332,27 @@ function renderInline(
             {num}
           </button>
         );
+      }
+    }
+    const tagCite = p.match(/^\[([A-Za-z][\w &]*?)\]$/);
+    if (tagCite && citations) {
+      const tag = tagCite[1].trim().toLowerCase();
+      const sourceId = TAG_TO_SOURCE_ID[tag];
+      if (sourceId) {
+        const found = citations.find((c) => c.source.id === sourceId);
+        if (found) {
+          return (
+            <button
+              key={i}
+              type="button"
+              className="cite"
+              onClick={() => onCitationClick?.(found.index)}
+              aria-label={`Citation ${found.index} — ${found.source.name}`}
+            >
+              {found.index}
+            </button>
+          );
+        }
       }
     }
     const bold = p.match(/^\*\*([^*\n]+?)\*\*$/);
@@ -361,9 +399,6 @@ function FeedbackBar({ copyText }: FeedbackBarProps) {
       </button>
       <button type="button" className="thumb" onClick={copy} aria-label="Copy">
         <Ico name="copy" size={14} />
-      </button>
-      <button type="button" className="thumb" aria-label="Regenerate (not yet implemented)" disabled>
-        <Ico name="redo" size={14} />
       </button>
       {copied && <span className="msg__copied">Copied</span>}
     </div>

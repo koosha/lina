@@ -63,19 +63,28 @@ Each worker is independently usable as a library or CLI — see the per-subsyste
 
 ### Install
 
+The project uses [`uv`](https://docs.astral.sh/uv/) for environment + dependency management. The committed `uv.lock` pins exact versions for reproducibility.
+
 ```bash
-python3.12 -m venv .venv
-source .venv/bin/activate
-pip install -e ".[dev]"
+# One-time uv install (macOS Homebrew — or see https://docs.astral.sh/uv/#installation)
+brew install uv
+
+# Provision the venv and install deps + dev extras (recreates .venv if missing)
+uv sync --extra dev
 ```
+
+`uv sync` reads `pyproject.toml` + `uv.lock`, builds a `.venv/` if absent, installs the locked package set, and removes any extras no longer in the manifest (so the venv never drifts).
 
 ### Run the unit suite
 
 The unit tests are hermetic. C uses `pytest-postgresql` to spin up an ephemeral Postgres per session; A and B use `testcontainers[opensearch]` (Docker required — tests skip cleanly otherwise).
 
 ```bash
-pytest -v
+uv run pytest -v
+# or, with the venv activated: pytest -v
 ```
+
+`uv run <cmd>` executes inside the project's venv without you having to `source .venv/bin/activate` first; if you prefer the activated-shell workflow, the `.venv/bin/<tool>` paths still work (`source .venv/bin/activate` then `pytest -v`).
 
 ### Try each CLI locally
 

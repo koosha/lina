@@ -1,0 +1,226 @@
+/* Lina wireframes — professional, restrained */
+:root {
+  --ink: #14171a;
+  --ink-2: #2f343a;
+  --ink-3: #5b6168;
+  --ink-4: #8a9098;
+  --ink-5: #b9bdc3;
+  --paper: #ffffff;
+  --paper-2: #f6f5f1;
+  --paper-3: #ecebe5;
+  --line: #14171a;
+  --line-soft: #d5d3cc;
+  --line-softer: #e8e6df;
+  --accent: #1f3a4d;     /* deep slate-blue, sober legal tone */
+  --accent-2: #4a6373;
+  --highlight: #f4eeda;  /* warm parchment highlight */
+  --thumb: #dfe7e1;
+  /* Type stack — the wireframes themselves use these so the user sees the
+     actual feel. Coding agent: ship Inter or a similar humanist sans. */
+  --font-display: 'Inter', 'Söhne', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-body: 'Inter', 'Söhne', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', ui-monospace, monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+/* Frame chrome */
+.wf-frame {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.5;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  position: relative;
+  overflow: hidden;
+}
+.wf-frame * { font-family: inherit; }
+
+/* Wireframe boxes — flat, low-fi but not sketchy */
+.wf-box {
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  background: var(--paper);
+}
+.wf-box-soft {
+  border: 1px dashed var(--line-soft);
+  border-radius: 6px;
+}
+
+.wf-mono { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.01em; }
+
+/* Display headings */
+.wf-display {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+.wf-h {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.wf-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+/* Placeholder image bars */
+.wf-placeholder {
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent 0,
+    transparent 7px,
+    rgba(20, 23, 26, 0.06) 7px,
+    rgba(20, 23, 26, 0.06) 8px
+  );
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+/* Buttons */
+.wf-btn {
+  border: 1px solid var(--line-soft);
+  background: var(--paper);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 7px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink);
+}
+.wf-btn-primary {
+  background: var(--accent);
+  color: var(--paper);
+  border-color: var(--accent);
+}
+.wf-btn-ghost { background: transparent; color: var(--ink-2); }
+
+/* Chips */
+.wf-chip {
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  background: var(--paper);
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.wf-chip:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Annotation note */
+.wf-note {
+  font-family: var(--font-mono);
+  color: var(--ink-3);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+/* Floating sketch annotation tag */
+.wf-callout {
+  position: absolute;
+  font-family: var(--font-mono);
+  color: var(--accent);
+  font-size: 10.5px;
+  pointer-events: none;
+  background: var(--paper);
+  border: 1px dashed var(--accent);
+  padding: 3px 6px;
+  border-radius: 4px;
+}
+
+/* Avatar dot */
+.wf-dot {
+  width: 32px; height: 32px;
+  border: 1px solid var(--line-soft);
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--paper-2);
+  color: var(--ink-2);
+  flex-shrink: 0;
+}
+
+/* Citation tag */
+.wf-cite {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 16px;
+  padding: 0 5px;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  background: var(--paper);
+  vertical-align: middle;
+  margin: 0 2px;
+  cursor: pointer;
+}
+.wf-cite:hover { background: var(--accent); color: var(--paper); }
+
+/* Cursor blinking caret */
+@keyframes wf-blink {
+  0%, 50% { opacity: 1; }
+  50.01%, 100% { opacity: 0; }
+}
+.wf-caret {
+  display: inline-block;
+  width: 1.5px;
+  height: 1em;
+  background: var(--ink-2);
+  vertical-align: text-bottom;
+  animation: wf-blink 1s steps(1) infinite;
+  margin-left: 2px;
+}
+
+/* Thumbs / message-action buttons */
+.wf-thumb {
+  width: 28px; height: 28px;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  background: var(--paper);
+  cursor: pointer;
+  color: var(--ink-3);
+}
+.wf-thumb:hover { border-color: var(--accent); color: var(--accent); }
+.wf-thumb.on { background: var(--thumb); color: var(--accent); border-color: var(--accent); }
+
+/* Disclaimer */
+.wf-disclaimer {
+  font-family: var(--font-body);
+  font-size: 11.5px;
+  color: var(--ink-3);
+  text-align: center;
+}
+
+/* Section dividers */
+.wf-rule { border: 0; border-top: 1px solid var(--line-softer); margin: 0; }

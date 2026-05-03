@@ -25,5 +25,5 @@ CREATE TABLE IF NOT EXISTS fact_invoice_line_item (
     billing_guideline_reason varchar,
     created_at timestamp NOT NULL
 )
-DISTSTYLE KEY (matter_id)
+DISTKEY (matter_id)
 SORTKEY (line_item_date, vendor_id);

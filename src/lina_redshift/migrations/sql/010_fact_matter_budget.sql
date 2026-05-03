@@ -13,5 +13,5 @@ CREATE TABLE IF NOT EXISTS fact_matter_budget (
     created_at timestamp NOT NULL,
     updated_at timestamp NOT NULL
 )
-DISTSTYLE KEY (matter_id)
+DISTKEY (matter_id)
 SORTKEY (matter_id, budget_version);

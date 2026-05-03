@@ -13,5 +13,5 @@ CREATE TABLE IF NOT EXISTS fact_accrual (
     created_at timestamp NOT NULL,
     updated_at timestamp NOT NULL
 )
-DISTSTYLE KEY (matter_id)
+DISTKEY (matter_id)
 SORTKEY (period_start_date, matter_id);

@@ -1,0 +1,95 @@
+.answered {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: stretch;
+  background: var(--paper);
+}
+
+.answered__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--line-softer);
+}
+
+.answered__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 28px 14px;
+  border-bottom: 1px solid var(--line-softer);
+  background: var(--paper);
+}
+
+.answered__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 16px;
+  color: var(--ink);
+  letter-spacing: -0.005em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.answered__actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.ghost-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border: 1px solid var(--line-soft);
+  background: var(--paper);
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: color var(--duration-fast), border-color var(--duration-fast);
+}
+.ghost-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.ghost-btn--accent {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.ghost-btn--accent:hover {
+  background: var(--accent);
+  color: var(--paper);
+}
+
+.answered__thread {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 28px 16px;
+  scroll-behavior: smooth;
+}
+
+.answered__composer {
+  border-top: 1px solid var(--line-softer);
+  padding: 14px 28px 16px;
+  background: var(--paper);
+}
+
+.answered__disclaimer {
+  margin-top: 8px;
+}
+
+@media (max-width: 980px) {
+  .answered {
+    flex-direction: column;
+  }
+  .answered__main {
+    border-right: 0;
+  }
+}

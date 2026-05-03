@@ -1,0 +1,129 @@
+.drawer {
+  width: 340px;
+  flex-shrink: 0;
+  background: var(--paper-2);
+  border-left: 1px solid var(--line-softer);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.drawer__head {
+  padding: 24px 22px 14px;
+  border-bottom: 1px solid var(--line-softer);
+  background: var(--paper-2);
+}
+
+.drawer__lead {
+  margin: 8px 0 0;
+  font-size: 12.5px;
+  color: var(--ink-3);
+  line-height: 1.5;
+}
+
+.drawer__list {
+  list-style: none;
+  margin: 0;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+}
+
+.drawer__card {
+  background: var(--paper);
+  border: 1px solid var(--line-softer);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: border-color var(--duration-fast), box-shadow var(--duration-fast);
+}
+.drawer__card--on {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(31, 58, 77, 0.08);
+}
+
+.drawer__card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.drawer__num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 16px;
+  padding: 0 5px;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  background: var(--paper);
+  line-height: 1;
+}
+
+.drawer__source {
+  font-weight: 600;
+  font-size: 12.5px;
+  color: var(--accent);
+}
+
+.drawer__label {
+  font-size: 13px;
+  color: var(--ink-2);
+  line-height: 1.45;
+}
+
+.drawer__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--accent);
+  margin-top: 2px;
+}
+
+.drawer__foot {
+  border-top: 1px solid var(--line-softer);
+  padding: 18px 22px 24px;
+  background: var(--paper-2);
+}
+
+.drawer__systems {
+  list-style: none;
+  margin: 8px 0 6px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.drawer__systems-name {
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+.drawer__systems-name::before {
+  content: "•";
+  margin-right: 8px;
+  color: var(--ink-4);
+}
+
+.drawer__systems-note {
+  margin: 6px 0 0;
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+
+@media (max-width: 980px) {
+  .drawer {
+    width: 100%;
+    border-left: 0;
+    border-top: 1px solid var(--line-softer);
+  }
+}

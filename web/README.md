@@ -39,8 +39,11 @@ web/
 │   ├── lib/
 │   │   ├── api.ts               ← POST /ask client
 │   │   ├── sources.ts           ← source-name mapping (worker → friendly)
-│   │   ├── sampleQueries.ts     ← bundled docs/sample-queries.json
+│   │   ├── sampleQueries.ts     ← imports src/data/sample-queries.json
 │   │   └── types.ts
+│   ├── data/
+│   │   └── sample-queries.json  ← canonical sample-query reference
+
 │   ├── components/              ← TopBar, Composer, Chips, Pill, Disclaimer,
 │   │                              Messages, CitationsDrawer, Ico
 │   └── pages/

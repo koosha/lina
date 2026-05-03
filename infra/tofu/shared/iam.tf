@@ -48,44 +48,69 @@ resource "aws_iam_role_policy" "ci_runner_redshift" {
   })
 }
 
-# Secrets Manager — scoped to the auto-generated Redshift admin secret for
-# the lina-ci namespace plus the OpenAI key already used by the sandbox.
-# The Redshift secret name pattern is fixed by AWS: redshift!lina-ci-ns-<rand>.
+# Secrets Manager — read on specific secrets, plus ListSecrets which the
+# ci-redshift-dsn.sh helper uses to discover the auto-generated Redshift
+# admin secret name. ListSecrets is account-wide metadata and does NOT
+# support resource scoping, so it's split into its own "*"-resource statement.
 resource "aws_iam_role_policy" "ci_runner_secrets" {
   name = "lina-ci-runner-secrets"
   role = aws_iam_role.ci_runner.id
 
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [{
-      Effect = "Allow"
-      Action = [
-        "secretsmanager:GetSecretValue",
-        "secretsmanager:DescribeSecret",
-        "secretsmanager:ListSecrets",
-      ]
-      Resource = [
-        "arn:aws:secretsmanager:${var.aws_region_for_resources}:${var.aws_account_id}:secret:redshift!lina-ci-ns-*",
-        "arn:aws:secretsmanager:${var.aws_region_for_resources}:${var.aws_account_id}:secret:lina/sandbox/openai-api-key-*",
-      ]
-    }]
+    Statement = [
+      {
+        Sid    = "ReadScopedSecrets"
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:GetSecretValue",
+          "secretsmanager:DescribeSecret",
+        ]
+        Resource = [
+          "arn:aws:secretsmanager:${var.aws_region_for_resources}:${var.aws_account_id}:secret:redshift!lina-ci-ns-*",
+          "arn:aws:secretsmanager:${var.aws_region_for_resources}:${var.aws_account_id}:secret:lina/sandbox/openai-api-key-*",
+        ]
+      },
+      {
+        Sid      = "ListSecretsForDiscovery"
+        Effect   = "Allow"
+        Action   = ["secretsmanager:ListSecrets"]
+        Resource = "*"
+      },
+    ]
   })
 }
 
-# OpenSearch — read/write on the lina-ci domain only.
+# OpenSearch — HTTP queries against the lina-ci domain (es:ESHttp*) plus
+# the metadata describe call used by the ci-opensearch-host.sh helper to
+# discover the domain endpoint at workflow start.
 resource "aws_iam_role_policy" "ci_runner_opensearch" {
   name = "lina-ci-runner-opensearch"
   role = aws_iam_role.ci_runner.id
 
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [{
-      Effect = "Allow"
-      Action = ["es:ESHttp*"]
-      Resource = [
-        "arn:aws:es:${var.aws_region_for_resources}:${var.aws_account_id}:domain/lina-ci/*",
-      ]
-    }]
+    Statement = [
+      {
+        Sid    = "QueryDomain"
+        Effect = "Allow"
+        Action = ["es:ESHttp*"]
+        Resource = [
+          "arn:aws:es:${var.aws_region_for_resources}:${var.aws_account_id}:domain/lina-ci/*",
+        ]
+      },
+      {
+        Sid    = "DescribeDomainForDiscovery"
+        Effect = "Allow"
+        Action = [
+          "es:DescribeDomain",
+          "es:DescribeElasticsearchDomain",
+        ]
+        Resource = [
+          "arn:aws:es:${var.aws_region_for_resources}:${var.aws_account_id}:domain/lina-ci",
+        ]
+      },
+    ]
   })
 }
 

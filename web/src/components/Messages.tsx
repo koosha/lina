@@ -59,14 +59,41 @@ interface ProseProps {
 }
 
 function Prose({ text, citations, onCitationClick }: ProseProps) {
-  const paragraphs = text.split(/\n{2,}/g);
+  const blocks = parseBlocks(text);
   return (
     <div className="prose">
-      {paragraphs.map((para, i) => (
-        <p key={i}>{renderInline(para, citations, onCitationClick)}</p>
-      ))}
+      {blocks.map((b, i) =>
+        b.kind === "ul" ? (
+          <ul key={i}>
+            {b.items.map((item, j) => (
+              <li key={j}>{renderInline(item, citations, onCitationClick)}</li>
+            ))}
+          </ul>
+        ) : (
+          <p key={i}>{renderInline(b.text, citations, onCitationClick)}</p>
+        ),
+      )}
     </div>
   );
+}
+
+type Block = { kind: "p"; text: string } | { kind: "ul"; items: string[] };
+
+function parseBlocks(text: string): Block[] {
+  const blocks: Block[] = [];
+  for (const para of text.split(/\n{2,}/g)) {
+    const lines = para.split("\n");
+    const isBulletList = lines.length > 0 && lines.every((l) => /^\s*[-*]\s+/.test(l));
+    if (isBulletList) {
+      blocks.push({
+        kind: "ul",
+        items: lines.map((l) => l.replace(/^\s*[-*]\s+/, "")),
+      });
+    } else {
+      blocks.push({ kind: "p", text: para });
+    }
+  }
+  return blocks;
 }
 
 function renderInline(
@@ -74,26 +101,31 @@ function renderInline(
   citations: Citation[] | undefined,
   onCitationClick: ((i: number) => void) | undefined,
 ) {
-  const parts = text.split(/(\[\d+\])/g);
+  // Tokenize on citations, bold (**…**), and inline code (`…`).
+  const parts = text.split(/(\[\d+\]|\*\*[^*\n]+?\*\*|`[^`\n]+?`)/g);
   return parts.map((p, i) => {
-    const m = p.match(/^\[(\d+)\]$/);
-    if (m && citations) {
-      const num = Number(m[1]);
-      const cite = citations.find((c) => c.index === num);
-      if (cite) {
+    const cite = p.match(/^\[(\d+)\]$/);
+    if (cite && citations) {
+      const num = Number(cite[1]);
+      const found = citations.find((c) => c.index === num);
+      if (found) {
         return (
           <button
             key={i}
             type="button"
             className="cite"
             onClick={() => onCitationClick?.(num)}
-            aria-label={`Citation ${num} — ${cite.source.name}`}
+            aria-label={`Citation ${num} — ${found.source.name}`}
           >
             {num}
           </button>
         );
       }
     }
+    const bold = p.match(/^\*\*([^*\n]+?)\*\*$/);
+    if (bold) return <strong key={i}>{bold[1]}</strong>;
+    const code = p.match(/^`([^`\n]+?)`$/);
+    if (code) return <code key={i}>{code[1]}</code>;
     return <span key={i}>{p}</span>;
   });
 }

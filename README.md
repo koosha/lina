@@ -310,6 +310,18 @@ to drop the bill to ~$0.
 
 ---
 
+## CI integration tests
+
+Every PR that touches schema, templates, seed, IaC, or dependencies triggers a
+workflow that runs the integration suite against a dedicated `lina-ci` AWS
+environment. Auth is via GitHub OIDC (no static keys in GitHub Secrets).
+
+See [`deploy/ci-runbook.md`](./deploy/ci-runbook.md) for first-time operator
+setup. Cost: ~$28/month idle (one shared OpenSearch domain), ~$0.10 per CI
+run. Tear-down: `tofu -chdir=infra/tofu/ci destroy`.
+
+---
+
 ## Out of scope (deferred follow-ups)
 
 See §11/§12 of each design doc. Highlights:

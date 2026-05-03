@@ -1,4 +1,6 @@
-CREATE MATERIALIZED VIEW mv_matter_spend_summary AS
+CREATE MATERIALIZED VIEW mv_matter_spend_summary
+AUTO REFRESH YES
+AS
 SELECT
     li.matter_id,
     to_char(li.line_item_date, 'YYYY-"Q"Q') AS fiscal_period,
@@ -23,5 +25,4 @@ LEFT JOIN fact_invoice inv ON li.invoice_id = inv.invoice_id
 LEFT JOIN fact_matter_budget b ON li.matter_id = b.matter_id
     AND b.budget_status = 'approved'
     AND li.line_item_date BETWEEN b.budget_period_start_date AND b.budget_period_end_date
-GROUP BY li.matter_id, to_char(li.line_item_date, 'YYYY-"Q"Q')
-AUTO REFRESH YES;
+GROUP BY li.matter_id, to_char(li.line_item_date, 'YYYY-"Q"Q');

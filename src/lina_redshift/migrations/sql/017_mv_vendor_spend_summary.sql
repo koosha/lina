@@ -1,4 +1,6 @@
-CREATE MATERIALIZED VIEW mv_vendor_spend_summary AS
+CREATE MATERIALIZED VIEW mv_vendor_spend_summary
+AUTO REFRESH YES
+AS
 SELECT
     li.vendor_id,
     to_char(li.line_item_date, 'YYYY-"Q"Q') AS fiscal_period,
@@ -20,5 +22,4 @@ SELECT
     sum(case when li.billing_guideline_flag then 1 else 0 end) AS billing_guideline_flag_count
 FROM fact_invoice_line_item li
 LEFT JOIN dim_timekeeper tk ON li.timekeeper_id = tk.timekeeper_id
-GROUP BY li.vendor_id, to_char(li.line_item_date, 'YYYY-"Q"Q')
-AUTO REFRESH YES;
+GROUP BY li.vendor_id, to_char(li.line_item_date, 'YYYY-"Q"Q');

@@ -1,4 +1,6 @@
-CREATE MATERIALIZED VIEW mv_timekeeper_rate_analysis AS
+CREATE MATERIALIZED VIEW mv_timekeeper_rate_analysis
+AUTO REFRESH YES
+AS
 SELECT
     li.timekeeper_id,
     li.vendor_id,
@@ -23,5 +25,4 @@ LEFT JOIN fact_timekeeper_rate r ON li.timekeeper_id = r.timekeeper_id
     AND li.line_item_date BETWEEN r.effective_start_date
         AND coalesce(r.effective_end_date, DATE '9999-12-31')
 WHERE li.line_item_type = 'fee' AND li.timekeeper_id IS NOT NULL
-GROUP BY li.timekeeper_id, li.vendor_id, to_char(li.line_item_date, 'YYYY-"Q"Q')
-AUTO REFRESH YES;
+GROUP BY li.timekeeper_id, li.vendor_id, to_char(li.line_item_date, 'YYYY-"Q"Q');

@@ -22,7 +22,6 @@ export function App() {
   });
 
   const [messages, setMessages] = useState<UiMessage[]>([]);
-  const [initialQuestion, setInitialQuestion] = useState<string>("");
   const [pendingChip, setPendingChip] = useState<string | undefined>(undefined);
 
   // Reset chip echo so the same chip can be re-clicked.
@@ -33,6 +32,16 @@ export function App() {
     }
   }, [pendingChip]);
 
+  // Browser back from the answered state → return to landing. We push a
+  // history entry on the first submission so a single back press undoes it.
+  useEffect(() => {
+    function onPop() {
+      setMessages([]);
+    }
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
   const handleSubmit = useCallback(
     async (text: string) => {
       const trimmed = text.trim();
@@ -42,8 +51,10 @@ export function App() {
       const pendingId = `a-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
       setMessages((prev) => {
-        const isFirst = prev.length === 0;
-        if (isFirst) setInitialQuestion(trimmed);
+        if (prev.length === 0) {
+          // Add one history entry for the chat session so Back returns to landing.
+          window.history.pushState({ linaChat: true }, "");
+        }
         return [
           ...prev,
           { id: userId, role: "user", text: trimmed },
@@ -82,7 +93,10 @@ export function App() {
 
   function handleNewChat() {
     setMessages([]);
-    setInitialQuestion("");
+    // Drop the pushed history entry too so Back from landing leaves the app.
+    if (window.history.state && (window.history.state as { linaChat?: boolean }).linaChat) {
+      window.history.back();
+    }
   }
 
   if (PASSPHRASE && !gateOk) {
@@ -97,7 +111,6 @@ export function App() {
       {showAnswered ? (
         <Answered
           messages={messages}
-          initialQuestion={initialQuestion}
           onSubmit={handleSubmit}
           onNewChat={handleNewChat}
         />
@@ -113,11 +126,34 @@ export function App() {
 }
 
 function packetsToCitations(packets: ResultPacket[]): Citation[] {
-  return packets.map((p, i) => ({
-    index: i + 1,
-    source: packetToSource(p),
-    label: humanizeResultType(p.result_type) +
-      (p.row_count !== undefined ? ` · ${p.row_count} record${p.row_count === 1 ? "" : "s"}` : ""),
-    recordUrl: p.record_url,
-  }));
+  // Dedupe by (source.id, result_type). The supervisor often retries the same
+  // template (call → fail → retry with better params) and we don't want the
+  // user to see five "Matter Lookup" cards for what they perceive as one
+  // lookup. Keep the first occurrence's index, take the highest non-zero
+  // row_count and the first non-empty record_url across duplicates.
+  const merged = new Map<string, ResultPacket & { _firstIndex: number }>();
+  packets.forEach((p, i) => {
+    const key = `${packetToSource(p).id}::${p.result_type || ""}`;
+    const existing = merged.get(key);
+    if (!existing) {
+      merged.set(key, { ...p, _firstIndex: i });
+      return;
+    }
+    const existingRows = existing.row_count ?? 0;
+    const newRows = p.row_count ?? 0;
+    if (newRows > existingRows) existing.row_count = newRows;
+    if (!existing.record_url && p.record_url) existing.record_url = p.record_url;
+  });
+  return Array.from(merged.values())
+    .sort((a, b) => a._firstIndex - b._firstIndex)
+    .map((p, i) => ({
+      index: i + 1,
+      source: packetToSource(p),
+      label:
+        humanizeResultType(p.result_type) +
+        (p.row_count && p.row_count > 0
+          ? ` · ${p.row_count} record${p.row_count === 1 ? "" : "s"}`
+          : ""),
+      recordUrl: p.record_url,
+    }));
 }

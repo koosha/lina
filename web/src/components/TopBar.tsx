@@ -1,4 +1,3 @@
-import { Ico } from "./Ico";
 import "./TopBar.css";
 
 interface TopBarProps {
@@ -18,10 +17,6 @@ export function TopBar({ firstName = "Jane" }: TopBarProps) {
         </span>
       </div>
       <div className="topbar__right">
-        <a className="topbar__help" href="#help" aria-label="Help">
-          <Ico name="help" size={14} />
-          <span>Help</span>
-        </a>
         <span
           className="topbar__avatar"
           role="img"

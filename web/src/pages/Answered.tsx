@@ -9,12 +9,11 @@ import "./Answered.css";
 
 interface AnsweredProps {
   messages: UiMessage[];
-  initialQuestion: string;
   onSubmit: (text: string) => void;
   onNewChat: () => void;
 }
 
-export function Answered({ messages, initialQuestion, onSubmit, onNewChat }: AnsweredProps) {
+export function Answered({ messages, onSubmit, onNewChat }: AnsweredProps) {
   const [highlighted, setHighlighted] = useState<number | null>(null);
   const threadRef = useRef<HTMLDivElement | null>(null);
 
@@ -39,31 +38,14 @@ export function Answered({ messages, initialQuestion, onSubmit, onNewChat }: Ans
     setTimeout(() => setHighlighted((h) => (h === index ? null : h)), 1800);
   }
 
-  async function onShare() {
-    try {
-      await navigator.clipboard.writeText(window.location.href);
-    } catch {
-      /* ignore — sandbox demo */
-    }
-  }
-
   return (
     <div className="answered">
       <main className="answered__main">
         <div className="answered__header">
-          <h2 className="answered__title" title={initialQuestion}>
-            {initialQuestion}
-          </h2>
-          <div className="answered__actions">
-            <button type="button" className="ghost-btn" onClick={onShare}>
-              <Ico name="share" size={14} />
-              <span>Share</span>
-            </button>
-            <button type="button" className="ghost-btn ghost-btn--accent" onClick={onNewChat}>
-              <Ico name="plus" size={14} />
-              <span>New chat</span>
-            </button>
-          </div>
+          <button type="button" className="ghost-btn ghost-btn--accent" onClick={onNewChat}>
+            <Ico name="plus" size={14} />
+            <span>New chat</span>
+          </button>
         </div>
 
         <div className="answered__thread" ref={threadRef}>

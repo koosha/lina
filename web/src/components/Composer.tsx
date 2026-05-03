@@ -63,9 +63,6 @@ export function Composer({
   return (
     <div className={`composer composer--${variant}${pending ? " composer--pending" : ""}`}>
       <div className="composer__inner">
-        <button type="button" className="composer__plus" aria-label="Attach (not implemented)">
-          <Ico name="plus" size={16} />
-        </button>
         <textarea
           ref={ref}
           className="composer__input"

@@ -17,29 +17,11 @@
 .answered__header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 18px 28px 14px;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 14px 28px;
   border-bottom: 1px solid var(--line-softer);
   background: var(--paper);
-}
-
-.answered__title {
-  margin: 0;
-  font-family: var(--font-display);
-  font-weight: 600;
-  font-size: 16px;
-  color: var(--ink);
-  letter-spacing: -0.005em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.answered__actions {
-  display: flex;
-  gap: 8px;
-  flex-shrink: 0;
 }
 
 .ghost-btn {

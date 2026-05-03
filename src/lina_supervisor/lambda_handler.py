@@ -22,6 +22,7 @@ from lina_supervisor.caller_resolver import CallerResolver
 from lina_supervisor.config import SupervisorConfig
 from lina_supervisor.graph import build_graph
 from lina_supervisor.session import InMemorySessionStore
+from lina_supervisor.system_prompt import build_initial_messages
 from lina_supervisor.workers import WorkerHub
 
 _LOG = logging.getLogger(__name__)
@@ -184,7 +185,7 @@ def handler(
         )
         final = graph.invoke(
             {
-                "messages": [{"role": "user", "content": query}],
+                "messages": build_initial_messages(query),
                 "caller": caller,
                 "worker_call_count": 0,
                 "worker_packets": [],

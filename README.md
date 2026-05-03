@@ -285,6 +285,22 @@ CI-ready snapshot: 303 unit tests passing, ≥91% coverage on `src/lina_redshift
 
 ---
 
+## Sandbox deployment
+
+An OpenTofu module under `infra/tofu/` provisions a demo-grade hosted sandbox
+on AWS. After `tofu apply` and a follow-up image build/push, `lina-chat ask`
+is reachable at a public HTTPS endpoint guarded by a single shared API key.
+
+See [`infra/tofu/README.md`](./infra/tofu/README.md) for first-time bootstrap
+and [`deploy/runbook.md`](./deploy/runbook.md) for image build, migrate, seed,
+and smoke-test commands.
+
+Cost at idle: ~$28/month (OpenSearch dominates). Cost per query: ~$0.01–0.05
+(OpenAI tokens dominate). Tear down via `tofu destroy` between demo sessions
+to drop the bill to ~$0.
+
+---
+
 ## Out of scope (deferred follow-ups)
 
 See §11/§12 of each design doc. Highlights:

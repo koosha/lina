@@ -3,7 +3,7 @@ import { TopBar } from "./components/TopBar";
 import { Landing } from "./pages/Landing";
 import { Answered } from "./pages/Answered";
 import { PassphraseGate } from "./pages/PassphraseGate";
-import { ask, AskError, config as apiConfig } from "./lib/api";
+import { ask, AskError, config as apiConfig, type ChatTurn } from "./lib/api";
 import { humanizeResultType, packetToSource } from "./lib/sources";
 import type { Citation, ResultPacket, UiMessage } from "./lib/types";
 import "./App.css";
@@ -70,6 +70,11 @@ export function App() {
       const trimmed = text.trim();
       if (!trimmed) return;
 
+      // Snapshot prior turns BEFORE we mutate state — these become the chat
+      // history sent with the new query so the supervisor can resolve
+      // pronouns and follow-ups against earlier turns.
+      const priorHistory = messagesToHistory(messagesRef.current);
+
       const userId = `u-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
       const pendingId = `a-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
@@ -86,7 +91,7 @@ export function App() {
       });
 
       try {
-        const resp = await ask(trimmed);
+        const resp = await ask(trimmed, priorHistory);
         const citations = packetsToCitations(resp.worker_packets);
         const text =
           resp.answer_text && resp.answer_text.trim().length > 0
@@ -149,6 +154,21 @@ export function App() {
       )}
     </div>
   );
+}
+
+function messagesToHistory(messages: UiMessage[]): ChatTurn[] {
+  // Drop pending/error/empty messages and any non-user/assistant entries.
+  // Cap the tail to keep token cost bounded; with a 30k context this is
+  // more than enough for the demo's depth of follow-ups.
+  const MAX_TURNS = 20;
+  const turns: ChatTurn[] = [];
+  for (const m of messages) {
+    if (m.pending || m.error) continue;
+    if (m.role !== "user" && m.role !== "assistant") continue;
+    if (!m.text) continue;
+    turns.push({ role: m.role, content: m.text });
+  }
+  return turns.slice(-MAX_TURNS);
 }
 
 function packetsToCitations(packets: ResultPacket[]): Citation[] {

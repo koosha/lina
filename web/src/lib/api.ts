@@ -4,6 +4,15 @@ const API_BASE = (import.meta.env.VITE_LINA_API_BASE as string | undefined)?.rep
 const API_KEY = import.meta.env.VITE_LINA_API_KEY as string | undefined;
 const USER_ID = (import.meta.env.VITE_LINA_USER_ID as string | undefined) || "user_jane_smith";
 
+/** Prior conversation turn shape sent to the backend. Backend wraps these
+ *  between the system prompt and the new user query so follow-ups have
+ *  context (e.g. "And her manager?" can resolve "her" against the previous
+ *  turn). Tool calls and pending/error messages are filtered out client-side. */
+export interface ChatTurn {
+  role: "user" | "assistant";
+  content: string;
+}
+
 export class AskError extends Error {
   constructor(
     message: string,
@@ -14,7 +23,11 @@ export class AskError extends Error {
   }
 }
 
-export async function ask(query: string, signal?: AbortSignal): Promise<AskResponse> {
+export async function ask(
+  query: string,
+  history: ChatTurn[] = [],
+  signal?: AbortSignal,
+): Promise<AskResponse> {
   if (!API_BASE || !API_KEY) {
     if (import.meta.env.DEV) {
       throw new AskError(
@@ -31,7 +44,7 @@ export async function ask(query: string, signal?: AbortSignal): Promise<AskRespo
       "content-type": "application/json",
       "x-api-key": API_KEY,
     },
-    body: JSON.stringify({ user_id: USER_ID, query }),
+    body: JSON.stringify({ user_id: USER_ID, query, history }),
     signal,
   });
 

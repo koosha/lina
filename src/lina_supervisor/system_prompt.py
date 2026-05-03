@@ -66,15 +66,49 @@ Stop calling tools once you have what you need; produce the answer.
 """
 
 
-def build_initial_messages(query: str) -> list[dict[str, str]]:
+_VALID_HISTORY_ROLES = {"user", "assistant"}
+_MAX_HISTORY_TURNS = 20
+
+
+def build_initial_messages(
+    query: str,
+    history: list[dict[str, str]] | None = None,
+) -> list[dict[str, str]]:
     """Compose the message thread the supervisor's LLM sees on turn 1.
 
     System prompt sets the citation contract and source-name discipline.
+    Prior conversation history (if any) is spliced between the system
+    prompt and the new user query so the model can resolve follow-ups
+    ("And her manager?") against earlier turns.
     """
+    cleaned = _clean_history(history or [])
     return [
         {"role": "system", "content": SYSTEM_PROMPT},
+        *cleaned,
         {"role": "user", "content": query},
     ]
+
+
+def _clean_history(history: list[dict[str, str]]) -> list[dict[str, str]]:
+    """Drop malformed entries, enforce a turn cap, return only role+content.
+
+    The frontend is the source of truth for what to send. Defense in depth:
+    the backend also drops anything that isn't a clean user/assistant turn,
+    so a buggy or compromised client can't smuggle a system message or a
+    tool message into the thread.
+    """
+    out: list[dict[str, str]] = []
+    for entry in history:
+        if not isinstance(entry, dict):
+            continue
+        role = entry.get("role")
+        content = entry.get("content")
+        if role not in _VALID_HISTORY_ROLES:
+            continue
+        if not isinstance(content, str) or not content.strip():
+            continue
+        out.append({"role": role, "content": content})
+    return out[-_MAX_HISTORY_TURNS:]
 
 
 __all__ = ["SYSTEM_PROMPT", "build_initial_messages"]

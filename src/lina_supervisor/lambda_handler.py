@@ -142,10 +142,13 @@ def handler(
             return _error_response(400, "request body must be valid JSON")
         user_id = body.get("user_id", "")
         query = body.get("query", "")
+        history = body.get("history") or []
         if not user_id:
             return _error_response(400, "user_id is required")
         if not query:
             return _error_response(400, "query is required")
+        if not isinstance(history, list):
+            return _error_response(400, "history must be a list of {role, content} entries")
 
         request_id = (event.get("requestContext") or {}).get("requestId") or "lambda-req"
 
@@ -185,7 +188,7 @@ def handler(
         )
         final = graph.invoke(
             {
-                "messages": build_initial_messages(query),
+                "messages": build_initial_messages(query, history=history),
                 "caller": caller,
                 "worker_call_count": 0,
                 "worker_packets": [],

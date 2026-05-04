@@ -51,6 +51,8 @@ def load_all(client: Any, *, reset: bool = False) -> dict[str, int]:
 
     actions = _bulk_actions(named) + _bulk_actions(generated)
     helpers.bulk(client, actions, refresh="wait_for")
+    # See lina_users.seed: `wait_for` isn't enough on managed OpenSearch.
+    client.indices.refresh(index=_INDEX)
 
     return {
         "named": len(named),

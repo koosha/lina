@@ -74,7 +74,10 @@ def test_views_and_mvs_exist_in_redshift(redshift_conn: PgConnection) -> None:
             "mv_vendor_spend_summary",
             "mv_timekeeper_rate_analysis",
         ]:
-            cur.execute("SELECT count(*) FROM stv_mv_info WHERE name = %s", (mv,))
+            # SVV_MV_INFO is the user-accessible system view for materialized
+            # views in Redshift. STV_MV_INFO is the internal table and
+            # requires SYSLOG ACCESS, which `lina_admin` doesn't have.
+            cur.execute("SELECT count(*) FROM SVV_MV_INFO WHERE name = %s", (mv,))
             row = cur.fetchone()
             assert row is not None
             assert row[0] == 1, f"materialized view {mv} not present"

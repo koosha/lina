@@ -51,6 +51,12 @@ def load_all(client: Any, *, reset: bool = False) -> dict[str, int]:
 
     actions = _bulk_actions(named) + _bulk_actions(generated)
     helpers.bulk(client, actions, refresh="wait_for")
+    # `wait_for` should make the docs searchable, but on managed OpenSearch
+    # domains we've seen the next-bulk-search return 0 hits if the new
+    # documents haven't been refreshed yet. Force a refresh so any caller —
+    # CI, an operator, or a follow-up integration test — observes a
+    # consistent, queryable index immediately.
+    client.indices.refresh(index=_INDEX)
 
     return {
         "named": len(named),

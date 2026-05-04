@@ -14,6 +14,7 @@ from lina_vendors.seed.generator import generate_timekeepers
 from lina_vendors.seed.named_entities import named_timekeeper_docs
 
 _INDEX = "vendor_lawyer_profiles_v1"
+_STATE_INDEX = "lina_vendors_index_state"
 
 
 def _bulk_actions(docs: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -40,8 +41,15 @@ def load_all(client: Any, *, reset: bool = False) -> dict[str, int]:
     """
     from opensearchpy import helpers
 
-    if reset and client.indices.exists(index=_INDEX):
-        client.indices.delete(index=_INDEX)
+    if reset:
+        if client.indices.exists(index=_INDEX):
+            client.indices.delete(index=_INDEX)
+        # See lina_users.seed.load_all — also reset the migration ledger
+        # so apply_pending re-creates the data index with the explicit
+        # mapping instead of letting dynamic mapping kick in on first
+        # bulk insert.
+        if client.indices.exists(index=_STATE_INDEX):
+            client.indices.delete(index=_STATE_INDEX)
 
     runner = IndexRunner(client=client, mappings_dir=_mappings_dir())
     runner.apply_pending()
@@ -51,6 +59,8 @@ def load_all(client: Any, *, reset: bool = False) -> dict[str, int]:
 
     actions = _bulk_actions(named) + _bulk_actions(generated)
     helpers.bulk(client, actions, refresh="wait_for")
+    # See lina_users.seed: `wait_for` isn't enough on managed OpenSearch.
+    client.indices.refresh(index=_INDEX)
 
     return {
         "named": len(named),

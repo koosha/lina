@@ -23,3 +23,11 @@ infra/**/.terraform.lock.hcl
 infra/**/tfplan.bin
 infra/**/*.tfstate
 infra/**/*.tfstate.backup
+
+# Web app — Node modules and build output
+web/node_modules/
+web/dist/
+web/.vite/
+
+# Playwright MCP transient state
+.playwright-mcp/

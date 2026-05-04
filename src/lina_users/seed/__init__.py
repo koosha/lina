@@ -14,6 +14,7 @@ from lina_users.seed.generator import generate_users
 from lina_users.seed.named_entities import named_user_docs
 
 _INDEX = "corp_user_profiles_v1"
+_STATE_INDEX = "lina_users_index_state"
 
 
 def _bulk_actions(docs: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -40,8 +41,17 @@ def load_all(client: Any, *, reset: bool = False) -> dict[str, int]:
     """
     from opensearchpy import helpers
 
-    if reset and client.indices.exists(index=_INDEX):
-        client.indices.delete(index=_INDEX)
+    if reset:
+        if client.indices.exists(index=_INDEX):
+            client.indices.delete(index=_INDEX)
+        # Also reset the migration ledger — otherwise apply_pending sees
+        # the mapping as "already applied" and skips it, and the bulk
+        # insert below ends up auto-creating the data index with dynamic
+        # (text+keyword) mapping instead of our explicit one. With dynamic
+        # mapping a `terms` filter on `department` matches nothing because
+        # "Legal" gets analyzed to "legal" at index time.
+        if client.indices.exists(index=_STATE_INDEX):
+            client.indices.delete(index=_STATE_INDEX)
 
     runner = IndexRunner(client=client, mappings_dir=_mappings_dir())
     runner.apply_pending()
@@ -51,6 +61,12 @@ def load_all(client: Any, *, reset: bool = False) -> dict[str, int]:
 
     actions = _bulk_actions(named) + _bulk_actions(generated)
     helpers.bulk(client, actions, refresh="wait_for")
+    # `wait_for` should make the docs searchable, but on managed OpenSearch
+    # domains we've seen the next-bulk-search return 0 hits if the new
+    # documents haven't been refreshed yet. Force a refresh so any caller —
+    # CI, an operator, or a follow-up integration test — observes a
+    # consistent, queryable index immediately.
+    client.indices.refresh(index=_INDEX)
 
     return {
         "named": len(named),

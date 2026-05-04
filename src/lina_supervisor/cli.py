@@ -171,8 +171,10 @@ def _run_turn(
 ) -> SupervisorResponse:
     request_id = f"req_{ULID()}"
     started_at = time.perf_counter()
+    from lina_supervisor.system_prompt import build_initial_messages
+
     initial_state: SupervisorState = {
-        "messages": [{"role": "user", "content": query}],
+        "messages": build_initial_messages(query),
         "caller": caller,
         "worker_call_count": 0,
         "worker_packets": [],

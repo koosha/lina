@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Lina — Wireframes (C & D)</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+
+<link rel="stylesheet" href="styles.css"/>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<style>
+  html, body { margin: 0; padding: 0; background: #f0eee9; font-family: 'Inter', system-ui, sans-serif; }
+  #root { min-height: 100vh; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel" src="shared.jsx"></script>
+<script type="text/babel" src="wireframe-c.jsx"></script>
+<script type="text/babel" src="wireframe-d.jsx"></script>
+
+<script type="text/babel" data-presets="env,react">
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "showCallouts": false
+}/*EDITMODE-END*/;
+
+function App() {
+  const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
+
+  React.useEffect(() => {
+    const id = 'wf-callout-toggle';
+    let s = document.getElementById(id);
+    if (!s) { s = document.createElement('style'); s.id = id; document.head.appendChild(s); }
+    s.textContent = tweaks.showCallouts ? '' : '.wf-callout{display:none!important}';
+  }, [tweaks.showCallouts]);
+
+  return (
+    <>
+      <DesignCanvas>
+        <DCSection
+          id="intro"
+          title="Lina · storefront wireframes"
+          subtitle="Two directions. Each shown in its empty (landing) and answered (post-response) state."
+        >
+          <DCArtboard id="readme" label="00 · brief & handoff notes" width={560} height={820}>
+            <ReadmeArtboard/>
+          </DCArtboard>
+          <DCArtboard id="queries" label="01 · sample queries (real)" width={760} height={820}>
+            <SampleQueriesArtboard/>
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection
+          id="c"
+          title="Direction C — Storefront / dashboard"
+          subtitle="Marketing-rich landing for an authenticated user. Capabilities + how-it-works + trust strip below the chat hero."
+        >
+          <DCArtboard id="c-landing" label="C · landing (empty state)" width={1100} height={1380}>
+            <WireframeC state="landing"/>
+          </DCArtboard>
+          <DCArtboard id="c-answered" label="C · after a response (post-response state)" width={1100} height={1380}>
+            <WireframeC state="answered"/>
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection
+          id="d"
+          title="Direction D — Split-view with citations drawer"
+          subtitle="Pure chat, no marketing. Citations live in a persistent right drawer once an answer arrives."
+        >
+          <DCArtboard id="d-landing" label="D · landing (empty state)" width={1100} height={760}>
+            <WireframeD state="landing"/>
+          </DCArtboard>
+          <DCArtboard id="d-answered" label="D · after a response (citations drawer)" width={1100} height={760}>
+            <WireframeD state="answered"/>
+          </DCArtboard>
+        </DCSection>
+      </DesignCanvas>
+
+      <TweaksPanel title="Tweaks">
+        <TweakSection title="Annotations">
+          <TweakToggle
+            label="Show sketch callouts"
+            value={tweaks.showCallouts}
+            onChange={v => setTweak('showCallouts', v)}
+          />
+        </TweakSection>
+        <TweakSection title="Note">
+          <div style={{ fontSize: 12, color: '#5b6168', lineHeight: 1.5 }}>
+            Drag artboards to reorder. Click ⤢ on any artboard to focus it fullscreen. ←/→ to navigate, Esc to close.
+          </div>
+        </TweakSection>
+      </TweaksPanel>
+    </>
+  );
+}
+
+function ReadmeArtboard() {
+  return (
+    <div className="wf-frame" style={{ width: 560, height: 820, padding: 30, display: 'flex', flexDirection: 'column', gap: 12, background: '#fff' }}>
+      <div className="wf-eyebrow">Wireframes · v2</div>
+      <div className="wf-display" style={{ fontSize: 28 }}>Lina · storefront</div>
+
+      <div style={{ color: '#5b6168', fontSize: 13.5, lineHeight: 1.55 }}>
+        Chat-driven storefront for legal professionals. The user types a question; Lina answers from three of the firm's data systems with citations on every fact.
+      </div>
+
+      <hr className="wf-rule"/>
+
+      <div className="wf-h" style={{ fontSize: 14 }}>What's in this canvas</div>
+      <ul style={{ margin: 0, paddingLeft: 16, fontSize: 12.5, lineHeight: 1.6, color: '#2f343a' }}>
+        <li><b>Direction C</b> — Storefront with capability cards, how-it-works, trust strip. Two states.</li>
+        <li><b>Direction D</b> — Pure chat with a persistent citations drawer once an answer arrives. Two states.</li>
+        <li><b>Sample queries</b> — full list pulled from <span className="wf-mono" style={{ fontSize: 11 }}>/docs/sample-queries.json</span>.</li>
+      </ul>
+
+      <div className="wf-h" style={{ fontSize: 14, marginTop: 4 }}>Decisions baked in</div>
+      <ul style={{ margin: 0, paddingLeft: 16, fontSize: 12.5, lineHeight: 1.6, color: '#2f343a' }}>
+        <li>User-facing source names: <b>Matter & Spend</b>, <b>User Profiles</b>, <b>Outside Counsel</b>. Internal worker names never shown.</li>
+        <li>No conversation history sidebar at this stage.</li>
+        <li>Disclaimer wording mirrors industry standard.</li>
+        <li>Real sample question shown as input placeholder + chips.</li>
+        <li>Thumbs up/down + copy + regenerate + share on every assistant message.</li>
+      </ul>
+
+      <div className="wf-h" style={{ fontSize: 14, marginTop: 4 }}>For Claude Code</div>
+      <ul style={{ margin: 0, paddingLeft: 16, fontSize: 12.5, lineHeight: 1.6, color: '#2f343a' }}>
+        <li><b>Type stack:</b> Inter (display + body), JetBrains Mono (technical bits only). The Inter you see in the wireframes is the production direction — ship it.</li>
+        <li>Ship Inter via Google Fonts or self-host. Avoid system fallback.</li>
+        <li>Body 14px / line-height 1.5; display weights 600.</li>
+        <li>Source-name mapping (UI ↔ worker) — keep server-side, never leak:
+          <div className="wf-mono" style={{ fontSize: 10.5, color: '#5b6168', marginTop: 4 }}>
+            "Matter & Spend"   → lina-redshift<br/>
+            "User Profiles"    → lina-users<br/>
+            "Outside Counsel"  → lina-vendors
+          </div>
+        </li>
+        <li>Render every <span className="wf-mono" style={{ fontSize: 11 }}>ResultPacket</span> as a citation; show <span className="wf-mono" style={{ fontSize: 11 }}>source</span> as the friendly name above.</li>
+        <li>Streaming dots while supervisor loops (max 8 worker calls / turn).</li>
+      </ul>
+
+      <div style={{ flex: 1 }}/>
+      <div className="wf-disclaimer" style={{ borderTop: '1px solid #e8e6df', paddingTop: 10 }}>
+        Lina can make mistakes. Please review and validate results before relying on them.
+      </div>
+    </div>
+  );
+}
+
+function SampleQueriesArtboard() {
+  return (
+    <div className="wf-frame" style={{ width: 760, height: 820, padding: 24, display: 'flex', flexDirection: 'column', gap: 12, background: '#fff', overflow: 'hidden' }}>
+      <div className="wf-eyebrow">Reference</div>
+      <div className="wf-display" style={{ fontSize: 22 }}>Sample queries</div>
+      <div style={{ color: '#5b6168', fontSize: 12.5, lineHeight: 1.5 }}>
+        From <span className="wf-mono" style={{ fontSize: 11 }}>/docs/sample-queries.json</span>. Use the easy ones as input placeholder + chips. Use the harder cross-source ones in onboarding examples.
+      </div>
+      <div style={{ overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 8, paddingRight: 4 }}>
+        {SAMPLE_QUESTIONS_FULL.map(q => (
+          <div key={q.id} className="wf-box" style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              {q.sources.map(s => {
+                const ds = DATA_SOURCES.find(d => d.id === s);
+                return (
+                  <span key={s} style={{
+                    border: '1px solid #1f3a4d', color: '#1f3a4d',
+                    borderRadius: 4, padding: '1px 7px', fontSize: 10.5,
+                    fontWeight: 500,
+                  }}>{ds ? ds.name : s}</span>
+                );
+              })}
+              <span style={{
+                color: '#8a9098', fontFamily: 'JetBrains Mono', fontSize: 10,
+                textTransform: 'uppercase', letterSpacing: '0.08em',
+              }}>{q.difficulty}</span>
+            </div>
+            <div style={{ fontSize: 13.5, color: '#14171a', lineHeight: 1.45 }}>{q.text}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

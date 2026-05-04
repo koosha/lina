@@ -76,14 +76,18 @@ def seed_cmd(ctx: click.Context, reset: bool, named_only: bool, bulk_only: bool)
     client = _get_client(ctx)
     if named_only:
         runner = IndexRunner(client=client, mappings_dir=_mappings_dir())
-        if reset and client.indices.exists(index="corp_user_profiles_v1"):
-            client.indices.delete(index="corp_user_profiles_v1")
+        if reset:
+            if client.indices.exists(index="corp_user_profiles_v1"):
+                client.indices.delete(index="corp_user_profiles_v1")
+            if client.indices.exists(index="lina_users_index_state"):
+                client.indices.delete(index="lina_users_index_state")
         runner.apply_pending()
         actions = [
             {"_index": "corp_user_profiles_v1", "_id": d["user_id"], "_source": d}
             for d in named_user_docs()
         ]
         helpers.bulk(client, actions, refresh="wait_for")
+        client.indices.refresh(index="corp_user_profiles_v1")
         result = {"named": len(actions), "generated": 0, "total": len(actions)}
     elif bulk_only:
         runner = IndexRunner(client=client, mappings_dir=_mappings_dir())
@@ -93,6 +97,7 @@ def seed_cmd(ctx: click.Context, reset: bool, named_only: bool, bulk_only: bool)
             {"_index": "corp_user_profiles_v1", "_id": d["user_id"], "_source": d} for d in gen
         ]
         helpers.bulk(client, actions, refresh="wait_for")
+        client.indices.refresh(index="corp_user_profiles_v1")
         result = {"named": 0, "generated": len(gen), "total": len(gen)}
     else:
         result = load_all(client, reset=reset)

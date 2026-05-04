@@ -4,11 +4,20 @@ Instructs the model to ground every factual claim with an inline source-name
 citation tag — ``[matter]``, ``[people]``, or ``[counsel]``. The web UI
 recognizes those tags and renders them as clickable buttons that map to
 the correct card in the right-hand sources drawer.
+
+Also embeds the per-template ``Params`` JSON schemas so the LLM knows which
+fields each tool expects. The OpenAI tool definitions intentionally keep
+``params`` as ``object`` (one tool per subsystem rather than one per
+template), so the schemas have to surface in the prompt — without them the
+model calls tools with empty ``params`` and the validators reject everything.
 """
 
 from __future__ import annotations
 
-SYSTEM_PROMPT = """\
+import json
+from typing import Any
+
+_BASE_PROMPT = """\
 You are Lina, a legal-intelligence assistant for in-house counsel and
 legal-ops staff. You answer questions by calling the available tools, then
 synthesizing a concise, factual reply.
@@ -38,15 +47,40 @@ Do not invent facts. If a tool call returned no results or errored, say so
 plainly and cite the source you tried — for example: "I don't have spend
 data for that matter [matter]."
 
+CALLING TOOLS
+=============
+Each tool takes a `query_type` and a `params` object. The accepted
+fields for `params` differ per `query_type` and are listed in
+TOOL PARAMS SCHEMAS below. Required vs optional is defined in each
+schema; required fields appear in the schema's `"required"` list.
+
+The validators reject empty or wrong-shape params with a message like
+"exactly one of user_id, email, employee_id is required". When you see
+that, the fix is to send the missing identifier in the next call — not
+to retry with empty params or to tell the user the tool is broken.
+
+Concrete examples:
+
+- search_users user_lookup: send `params={"user_id": "user_jane_smith"}`
+  (or use email or employee_id — exactly one).
+- query_redshift matter_lookup: send
+  `params={"client_matter_id": "matter_acme_v_beta"}` when the user
+  gives you a string ID (or `matter_id` if you have an internal one).
+- query_redshift matter_spend_summary: requires `matter_id` and a
+  `fiscal_period` like "2024-Q4".
+
 EXAMPLE
 =======
 Question: Look up matter_acme_v_beta and tell me the owner's department.
 
-Tool calls return:
-  - matter_lookup: matter_id=matter_acme_v_beta, name="Acme v. Beta",
-    status=Open, owner_user_id=user_jane_smith
-  - user_lookup: user_id=user_jane_smith, full_name="Jane Smith",
-    department="Legal"
+Tool calls:
+  query_redshift(query_type="matter_lookup",
+                 params={"client_matter_id": "matter_acme_v_beta"})
+    → matter_id=matter_acme_v_beta, name="Acme v. Beta", status=Open,
+      owner_user_id=user_jane_smith
+  search_users(query_type="user_lookup",
+               params={"user_id": "user_jane_smith"})
+    → full_name="Jane Smith", department="Legal"
 
 Good answer:
   Matter `matter_acme_v_beta` is **Acme v. Beta**, currently **Open**
@@ -64,6 +98,60 @@ OTHER STYLE NOTES
 
 Stop calling tools once you have what you need; produce the answer.
 """
+
+
+def _format_schemas_section() -> str:
+    """Render ``TOOL PARAMS SCHEMAS`` from the registered template Params.
+
+    Lazy import keeps the module loadable without the worker dependencies
+    (some unit tests construct only the system prompt).
+    """
+    from lina_redshift.templates import TEMPLATE_REGISTRY as RS_REGISTRY
+    from lina_users.templates import TEMPLATE_REGISTRY as USERS_REGISTRY
+    from lina_vendors.templates import TEMPLATE_REGISTRY as VENDORS_REGISTRY
+
+    sections: list[str] = ["TOOL PARAMS SCHEMAS", "===================", ""]
+    for tool_name, registry in (
+        ("query_redshift", RS_REGISTRY),
+        ("search_users", USERS_REGISTRY),
+        ("search_vendors", VENDORS_REGISTRY),
+    ):
+        sections.append(f"### {tool_name}")
+        sections.append("")
+        for query_type in sorted(registry.keys()):
+            template = registry[query_type]
+            schema = _shrink_schema(template.Params.model_json_schema())
+            sections.append(f"- query_type=\"{query_type}\":")
+            sections.append("  " + json.dumps(schema, separators=(",", ":")))
+        sections.append("")
+    return "\n".join(sections)
+
+
+def _shrink_schema(schema: dict[str, Any]) -> dict[str, Any]:
+    """Drop noise from a Pydantic-generated JSON schema for prompt budget.
+
+    The model only needs property names, types, and the `required` list to
+    call a tool correctly. Titles, descriptions, and Pydantic metadata
+    cost tokens without changing tool-call behavior.
+    """
+    out: dict[str, Any] = {}
+    if "properties" in schema:
+        out["properties"] = {
+            name: {k: v for k, v in prop.items() if k in {"type", "items", "anyOf", "enum"}}
+            for name, prop in schema["properties"].items()
+        }
+    if "required" in schema:
+        out["required"] = schema["required"]
+    return out
+
+
+def _build_full_prompt() -> str:
+    return _BASE_PROMPT + "\n" + _format_schemas_section()
+
+
+# Computed once at import. The schemas come from class-level attributes that
+# don't change at runtime.
+SYSTEM_PROMPT = _build_full_prompt()
 
 
 _VALID_HISTORY_ROLES = {"user", "assistant"}

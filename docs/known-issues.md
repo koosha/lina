@@ -54,47 +54,33 @@ code changes do not touch any of the failing tests or their fixtures
 
 ---
 
-## 2026-05-03 · P2 · open · `user_lookup` rejects `user_id` parameter
+## 2026-05-03 · P2 · fixed · supervisor called `user_lookup` with empty params
 
-**Repro:** ask Lina "What is user_jane_smith's job title and department?"
-through the live UI (or hit `/ask` directly with that query). The
-supervisor calls `user_lookup` with `{"user_id": "user_jane_smith"}` and
-the worker returns:
+**Repro (was):** ask Lina "What is user_jane_smith's job title and
+department?" through the live UI. The worker returned an
+`InvalidParametersError` saying "exactly one of user_id, email,
+employee_id is required" and the supervisor surfaced that as
+"the User Profiles lookup tool isn't accepting user_id" — making it
+look like the validator was the bug.
 
-```
-{
-  "type": "InvalidParametersError",
-  "message": "1 validation error for UserLookupParams\n  Value error, exactly one of user_id, email, employee_id is required"
-}
-```
+**Actual cause:** the validator was correct. The OpenAI tool definitions
+in `src/lina_supervisor/tools.py` keep `params` as opaque `object`
+("see template-specific schemas in the system prompt") but the system
+prompt didn't actually include those schemas. The LLM had no signal
+about which fields to fill in, so it called `search_users` with empty
+`params={}`. The validator's "exactly one of …" message named the
+field the LLM should have passed, which the LLM then misread as a
+rejection of a parameter it never sent.
 
-The supervisor then re-prompts the user for one of `user_id`, `email`, or
-`employee_id` — even though the request *did* include `user_id`.
+**Fix (commit 2026-05-03):** embed per-template `Params.model_json_schema()`
+output into the system prompt under a `TOOL PARAMS SCHEMAS` section.
+A regression test asserts the section is present and contains
+`user_lookup` and `matter_lookup` schemas. See
+`tests/unit/lina_supervisor/test_system_prompt.py`.
 
-**Likely cause:** the Pydantic validator for `UserLookupParams` in
-`lina_users` is treating `user_id` as missing when only `user_id` is
-passed. Probably a `model_validator` that checks `not any(...)` against
-the wrong attribute names, or a mode-`before` validator running before
-field assignment.
-
-**Fix sketch:**
-1. Reproduce locally:
-   ```bash
-   AWS_DEFAULT_REGION=us-east-1 .venv/bin/python -c \
-     "from lina_users.templates.user_lookup import UserLookupParams; \
-      print(UserLookupParams(user_id='user_jane_smith'))"
-   ```
-2. If it raises, the validator is the bug. Check the field names against
-   what the validator references.
-3. Add a unit test in `tests/unit/lina_users/templates/` that constructs
-   each of the three valid single-field forms and asserts they succeed.
-4. Add a parity integration test against OpenSearch (sandbox) once the
-   validator passes.
-
-**Workaround in the meantime:** the supervisor's reasoning still works
-(it correctly resolves "her" → user_jane_smith from prior context — see
-the conversation-history smoke test). Users just get a "please pass an
-identifier" reply instead of the actual record.
+Also tightened the prompt's "CALLING TOOLS" section to spell out that
+the validator's "exactly one of …" message means *send* the missing
+identifier in the next call — not that the tool is broken.
 
 **Surfaced in:** smoke test of conversation-history feature on
 2026-05-03, branch `feat/ui-direction-d`.

@@ -37,7 +37,10 @@ from lina_supervisor.workers import WorkerHub
 def _build_openai_client(config: SupervisorConfig) -> Any:
     from openai import OpenAI
 
-    return OpenAI(api_key=config.openai_api_key)
+    return OpenAI(
+        api_key=config.openai_api_key,
+        timeout=config.request_timeout_seconds,
+    )
 
 
 def _build_redshift_worker() -> Any:
@@ -45,11 +48,18 @@ def _build_redshift_worker() -> Any:
         return None
     import psycopg2
 
-    from lina_redshift.connection import resolve_config as redshift_config
+    from lina_redshift.connection import apply_session_settings, resolve_config as redshift_config
     from lina_redshift.worker import RedshiftWorker
 
     cfg = redshift_config()
+    # CLI keeps the DSN-based path (operator-supplied env var). We still
+    # apply the same statement_timeout + read_only GUCs that the Lambda
+    # gets via connect_with_kwargs so local repro matches production
+    # behavior.
     conn = psycopg2.connect(cfg.dsn)
+    apply_session_settings(
+        conn, statement_timeout_ms=cfg.statement_timeout_ms, read_only=True
+    )
     return RedshiftWorker(connection=conn)
 
 

@@ -28,6 +28,27 @@ from lina_supervisor.workers import WorkerHub
 _LOG = logging.getLogger(__name__)
 
 
+def _env_int(name: str, default: int) -> int:
+    raw = os.environ.get(name)
+    if raw is None or raw == "":
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        return default
+
+
+# Input-size guards. Configurable at deploy time so operators can tighten
+# them before opening the demo URL beyond a handful of trusted users.
+# Defaults match the Wave 3 sandbox suggestions in
+# docs/plans/2026-05-04-remediation.md.
+_MAX_BODY_BYTES = _env_int("LINA_MAX_BODY_BYTES", 64 * 1024)
+_MAX_QUERY_CHARS = _env_int("LINA_MAX_QUERY_CHARS", 4_000)
+_MAX_HISTORY_TURNS = _env_int("LINA_MAX_HISTORY_TURNS", 20)
+_MAX_HISTORY_MESSAGE_CHARS = _env_int("LINA_MAX_HISTORY_MESSAGE_CHARS", 4_000)
+_MAX_TOTAL_HISTORY_CHARS = _env_int("LINA_MAX_TOTAL_HISTORY_CHARS", 20_000)
+
+
 def _make_secrets_client() -> Any:
     """Construct the boto3 Secrets Manager client lazily.
 
@@ -55,24 +76,39 @@ def _get_openai_key() -> str:
     return _OPENAI_KEY_CACHE["value"]
 
 
-def _redshift_dsn() -> str:
-    """Build a psycopg2 DSN from the Redshift admin secret."""
+def _redshift_connect_kwargs() -> dict[str, Any]:
+    """Read the Redshift admin secret + env to build keyword args.
+
+    Keyword args avoid the silent breakage f-string DSNs hit when the
+    password contains URL-sensitive characters (``@``, ``/``, ``:``, ``#``,
+    ``%``) — psycopg2 would misparse the host or refuse the connection.
+    """
     arn = os.environ["LINA_REDSHIFT_SECRET_ARN"]
     secret = _secrets_client.get_secret_value(SecretId=arn)
     payload = json.loads(secret["SecretString"])
-    user = payload.get("username", "lina_admin")
-    password = payload["password"]
-    host = os.environ["LINA_REDSHIFT_HOST"]
-    port = payload.get("port", 5439)
-    database = payload.get("dbname", "dev")
-    return f"postgresql://{user}:{password}@{host}:{port}/{database}"
+    return {
+        "host": os.environ["LINA_REDSHIFT_HOST"],
+        "port": int(payload.get("port", 5439)),
+        "dbname": payload.get("dbname", "dev"),
+        "user": payload.get("username", "lina_admin"),
+        "password": payload["password"],
+    }
 
 
 def _build_llm_default(*, config: SupervisorConfig) -> Any:
-    """Default OpenAI client builder. Substitutable in unit tests."""
+    """Default OpenAI client builder. Substitutable in unit tests.
+
+    Applies ``config.request_timeout_seconds`` so a hung upstream call
+    doesn't blow past API Gateway's 30-second integration timeout while
+    Lambda keeps burning compute and the client sees a generic gateway
+    timeout instead of our error envelope.
+    """
     from openai import OpenAI
 
-    return OpenAI(api_key=config.openai_api_key)
+    return OpenAI(
+        api_key=config.openai_api_key,
+        timeout=config.request_timeout_seconds,
+    )
 
 
 def _build_workers_default(
@@ -90,8 +126,7 @@ def _build_workers_default(
     """
     _ = config  # config kept in signature for future per-config tuning
     _ = secrets_client  # passed through for potential per-call overrides
-    import psycopg2
-
+    from lina_redshift.connection import connect_with_kwargs
     from lina_redshift.worker import RedshiftWorker
     from lina_users.worker import UserSearchWorker
     from lina_vendors.worker import VendorSearchWorker
@@ -101,7 +136,12 @@ def _build_workers_default(
         auth_mode="aws_sigv4",
         aws_region=os.environ.get("AWS_REGION", "us-east-1"),
     )
-    rs_connection = psycopg2.connect(_redshift_dsn())
+    rs_connection = connect_with_kwargs(
+        connect_timeout=int(os.environ.get("LINA_REDSHIFT_CONNECT_TIMEOUT", "5")),
+        statement_timeout_ms=int(os.environ.get("LINA_STATEMENT_TIMEOUT_MS", "25000")),
+        read_only=True,
+        **_redshift_connect_kwargs(),
+    )
     redshift_worker = RedshiftWorker(connection=rs_connection)
     users_worker = UserSearchWorker(client=os_client, config=os_config)
     vendors_worker = VendorSearchWorker(client=os_client, config=os_config)
@@ -115,11 +155,19 @@ def _build_workers_default(
     return hub, caller
 
 
-def _error_response(status: int, message: str) -> dict[str, Any]:
+def _error_response(
+    status: int,
+    message: str,
+    *,
+    request_id: str | None = None,
+) -> dict[str, Any]:
+    body: dict[str, Any] = {"error": message}
+    if request_id:
+        body["request_id"] = request_id
     return {
         "statusCode": status,
         "headers": {"content-type": "application/json"},
-        "body": json.dumps({"error": message}),
+        "body": json.dumps(body),
     }
 
 
@@ -135,22 +183,63 @@ def handler(
     The factory parameters (``_build_workers``, ``_build_llm``) are private
     seams that let unit tests substitute mocks without monkey-patching boto3.
     """
+    request_id = (event.get("requestContext") or {}).get("requestId") or "lambda-req"
     try:
+        raw_body = event.get("body") or "{}"
+        # Use byte length (UTF-8) since `event["body"]` is a str when API
+        # Gateway didn't base64-encode it. This caps total wire size.
+        if len(raw_body.encode("utf-8")) > _MAX_BODY_BYTES:
+            return _error_response(413, "request body too large", request_id=request_id)
         try:
-            body = json.loads(event.get("body") or "{}")
+            body = json.loads(raw_body)
         except json.JSONDecodeError:
-            return _error_response(400, "request body must be valid JSON")
+            return _error_response(400, "request body must be valid JSON", request_id=request_id)
         user_id = body.get("user_id", "")
         query = body.get("query", "")
         history = body.get("history") or []
         if not user_id:
-            return _error_response(400, "user_id is required")
+            return _error_response(400, "user_id is required", request_id=request_id)
         if not query:
-            return _error_response(400, "query is required")
+            return _error_response(400, "query is required", request_id=request_id)
+        if not isinstance(query, str) or len(query) > _MAX_QUERY_CHARS:
+            return _error_response(
+                400,
+                f"query exceeds {_MAX_QUERY_CHARS} characters",
+                request_id=request_id,
+            )
         if not isinstance(history, list):
-            return _error_response(400, "history must be a list of {role, content} entries")
-
-        request_id = (event.get("requestContext") or {}).get("requestId") or "lambda-req"
+            return _error_response(
+                400,
+                "history must be a list of {role, content} entries",
+                request_id=request_id,
+            )
+        if len(history) > _MAX_HISTORY_TURNS:
+            return _error_response(
+                400,
+                f"history exceeds {_MAX_HISTORY_TURNS} turns",
+                request_id=request_id,
+            )
+        # Per-message and total caps — defense against a client paginating
+        # an unbounded conversation through the same endpoint.
+        total_history_chars = 0
+        for turn in history:
+            if not isinstance(turn, dict):
+                continue
+            content = turn.get("content")
+            if isinstance(content, str):
+                if len(content) > _MAX_HISTORY_MESSAGE_CHARS:
+                    return _error_response(
+                        400,
+                        f"history message exceeds {_MAX_HISTORY_MESSAGE_CHARS} characters",
+                        request_id=request_id,
+                    )
+                total_history_chars += len(content)
+        if total_history_chars > _MAX_TOTAL_HISTORY_CHARS:
+            return _error_response(
+                400,
+                f"history total content exceeds {_MAX_TOTAL_HISTORY_CHARS} characters",
+                request_id=request_id,
+            )
 
         config = SupervisorConfig(
             openai_api_key=_get_openai_key(),
@@ -209,9 +298,13 @@ def handler(
                 default=str,
             ),
         }
-    except Exception as exc:  # noqa: BLE001 - handler-level catchall by design
-        _LOG.exception("lambda handler failed")
-        return _error_response(500, str(exc))
+    except Exception:  # noqa: BLE001 - handler-level catchall by design
+        # Stack trace and exception details land in CloudWatch via .exception().
+        # Client gets a generic message + request_id so they can ask us to
+        # cross-reference logs without us leaking internal exception strings
+        # (DSNs, secret names, SQL, stack frames).
+        _LOG.exception("lambda handler failed", extra={"request_id": request_id})
+        return _error_response(500, "Internal server error", request_id=request_id)
 
 
 __all__ = ["handler"]

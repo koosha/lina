@@ -133,6 +133,15 @@ class RedshiftWorker:
                 cur.execute(sql, binds)
                 return [dict(row) for row in cur.fetchall()]
         except Exception as exc:
+            # After any psycopg2 error the connection sits in an aborted
+            # transaction state until rolled back; subsequent valid queries
+            # would otherwise fail with "current transaction is aborted".
+            # Roll back unconditionally and swallow rollback errors so the
+            # original exception remains the surfaced one.
+            try:
+                self._conn.rollback()
+            except Exception:  # noqa: BLE001 - never let rollback mask the real error
+                pass
             msg = str(exc).lower()
             if "statement timeout" in msg or "canceling statement due to" in msg:
                 raise QueryTimeoutError(str(exc)) from exc

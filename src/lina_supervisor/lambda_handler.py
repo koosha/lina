@@ -115,11 +115,19 @@ def _build_workers_default(
     return hub, caller
 
 
-def _error_response(status: int, message: str) -> dict[str, Any]:
+def _error_response(
+    status: int,
+    message: str,
+    *,
+    request_id: str | None = None,
+) -> dict[str, Any]:
+    body: dict[str, Any] = {"error": message}
+    if request_id:
+        body["request_id"] = request_id
     return {
         "statusCode": status,
         "headers": {"content-type": "application/json"},
-        "body": json.dumps({"error": message}),
+        "body": json.dumps(body),
     }
 
 
@@ -135,22 +143,25 @@ def handler(
     The factory parameters (``_build_workers``, ``_build_llm``) are private
     seams that let unit tests substitute mocks without monkey-patching boto3.
     """
+    request_id = (event.get("requestContext") or {}).get("requestId") or "lambda-req"
     try:
         try:
             body = json.loads(event.get("body") or "{}")
         except json.JSONDecodeError:
-            return _error_response(400, "request body must be valid JSON")
+            return _error_response(400, "request body must be valid JSON", request_id=request_id)
         user_id = body.get("user_id", "")
         query = body.get("query", "")
         history = body.get("history") or []
         if not user_id:
-            return _error_response(400, "user_id is required")
+            return _error_response(400, "user_id is required", request_id=request_id)
         if not query:
-            return _error_response(400, "query is required")
+            return _error_response(400, "query is required", request_id=request_id)
         if not isinstance(history, list):
-            return _error_response(400, "history must be a list of {role, content} entries")
-
-        request_id = (event.get("requestContext") or {}).get("requestId") or "lambda-req"
+            return _error_response(
+                400,
+                "history must be a list of {role, content} entries",
+                request_id=request_id,
+            )
 
         config = SupervisorConfig(
             openai_api_key=_get_openai_key(),
@@ -209,9 +220,13 @@ def handler(
                 default=str,
             ),
         }
-    except Exception as exc:  # noqa: BLE001 - handler-level catchall by design
-        _LOG.exception("lambda handler failed")
-        return _error_response(500, str(exc))
+    except Exception:  # noqa: BLE001 - handler-level catchall by design
+        # Stack trace and exception details land in CloudWatch via .exception().
+        # Client gets a generic message + request_id so they can ask us to
+        # cross-reference logs without us leaking internal exception strings
+        # (DSNs, secret names, SQL, stack frames).
+        _LOG.exception("lambda handler failed", extra={"request_id": request_id})
+        return _error_response(500, "Internal server error", request_id=request_id)
 
 
 __all__ = ["handler"]

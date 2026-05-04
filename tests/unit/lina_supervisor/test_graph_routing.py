@@ -432,3 +432,56 @@ def test_graph_appends_each_message_to_state_messages() -> None:
     assert len(final["messages"]) >= 3
     # First non-initial message should be assistant
     assert final["messages"][1]["role"] == "assistant"
+
+
+@pytest.mark.unit
+def test_call_budget_enforced_before_dispatch_when_llm_emits_too_many_tool_calls() -> None:
+    """The LLM can return multiple tool_calls in a single turn.
+
+    If we already have N calls in the budget and the next assistant turn
+    asks for M > (max - N), we must dispatch only the allowed slice and
+    synthesize a budget-exceeded tool reply for the rest. Concretely:
+    with max_worker_calls=2 and the LLM returning 5 tool_calls in turn 1,
+    only 2 should hit hub.dispatch and the other 3 get budget_exceeded
+    placeholders.
+    """
+    hub, rs, _users, _vendors = _hub()
+    rs.run.return_value = _ok_packet("redshift", "matter_lookup")
+    five_calls = [
+        _tool_call(
+            name="query_redshift",
+            tool_id=f"t{i}",
+            tool_input={"query_type": "matter_lookup", "params": {}},
+        )
+        for i in range(5)
+    ]
+    routing = [_tool_response(five_calls)]
+    client = _stub_openai_client(routing_responses=routing, final_chunks=["final"])
+    config = SupervisorConfig(openai_api_key="sk-test", max_worker_calls=2)
+    graph = build_graph(
+        config=config,
+        hub=hub,
+        session_store=InMemorySessionStore(),
+        llm_client=client,
+    )
+    final = graph.invoke(
+        {
+            "messages": [{"role": "user", "content": "hi"}],
+            "caller": _caller(),
+            "worker_call_count": 0,
+            "worker_packets": [],
+            "truncated": False,
+            "answer_text": "",
+        }
+    )
+    # Only 2 dispatches even though the LLM emitted 5 tool_calls
+    assert rs.run.call_count == 2
+    # All 5 tool_call_ids got a tool reply (2 real + 3 budget_exceeded placeholders)
+    tool_msgs = [m for m in final["messages"] if m["role"] == "tool"]
+    assert len(tool_msgs) == 5
+    budget_excs = [m for m in tool_msgs if "budget_exceeded" in m["content"]]
+    assert len(budget_excs) == 3
+    # truncated propagated
+    assert final["truncated"] is True
+    # worker_call_count reflects only what was actually dispatched
+    assert final["worker_call_count"] == 2

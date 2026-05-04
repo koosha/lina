@@ -159,3 +159,42 @@ def test_dispatch_handles_invalid_params_via_error_packet() -> None:
         caller=_caller(),
     )
     assert result["error"]["type"] == "InvalidParametersError"
+
+
+@pytest.mark.unit
+def test_dispatch_returns_backend_unavailable_when_worker_is_none() -> None:
+    """A None worker would otherwise raise AttributeError on .run(...).
+
+    The Lambda's ``_build_workers_default`` and the CLI both produce None
+    workers when the underlying backend isn't configured. Hub must turn
+    that into a structured packet, not a crash.
+    """
+    hub = WorkerHub(redshift_worker=None, users_worker=MagicMock(), vendors_worker=MagicMock())
+    result = hub.dispatch(
+        tool_name="query_redshift",
+        tool_input={"query_type": "matter_lookup", "params": {}},
+        caller=_caller(),
+    )
+    assert result["source_engine"] == "supervisor"
+    assert result["error"]["type"] == "BackendUnavailableError"
+    assert "query_redshift" in result["error"]["message"]
+
+
+@pytest.mark.unit
+def test_dispatch_backend_unavailable_for_each_subsystem() -> None:
+    """Confirm the null-check covers all three subsystem entries."""
+    cases = [
+        ("query_redshift", {"redshift_worker": None}),
+        ("search_users", {"users_worker": None}),
+        ("search_vendors", {"vendors_worker": None}),
+    ]
+    for tool_name, override in cases:
+        kwargs = {"redshift_worker": MagicMock(), "users_worker": MagicMock(), "vendors_worker": MagicMock()}
+        kwargs.update(override)
+        hub = WorkerHub(**kwargs)
+        result = hub.dispatch(
+            tool_name=tool_name,
+            tool_input={"query_type": "x", "params": {}},
+            caller=_caller(),
+        )
+        assert result["error"]["type"] == "BackendUnavailableError", tool_name

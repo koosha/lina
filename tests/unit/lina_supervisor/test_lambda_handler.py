@@ -223,11 +223,19 @@ def test_handler_response_includes_worker_packets_and_call_count(
 def test_handler_translates_handler_exception_to_500_with_error_envelope(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Internal exceptions should not leak details to the client.
+
+    The client gets a generic message and the request_id so we can
+    cross-reference CloudWatch. Stack traces, secret names, DSNs, and
+    SQL fragments must not appear in the response body.
+    """
     secrets = _stub_secrets_client()
     monkeypatch.setattr(lambda_handler, "_secrets_client", secrets)
 
+    sentinel = "redshift_admin_password_sk_xyz_dont_leak_this"
+
     def _exploding_factory(**_kwargs: Any) -> Any:
-        raise RuntimeError("boom")
+        raise RuntimeError(sentinel)
 
     response = lambda_handler.handler(
         {
@@ -240,4 +248,6 @@ def test_handler_translates_handler_exception_to_500_with_error_envelope(
     )
     assert response["statusCode"] == 500
     body = json.loads(response["body"])
-    assert "boom" in body["error"]
+    assert body["error"] == "Internal server error"
+    assert body["request_id"] == "rid-3"
+    assert sentinel not in response["body"]

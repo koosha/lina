@@ -166,3 +166,30 @@ def test_run_returns_empty_metrics_for_no_match(
     assert isinstance(packet, ResultPacket)
     assert packet.row_count == 0
     assert packet.metrics == []
+
+
+@pytest.mark.unit
+def test_execute_rolls_back_after_error_so_next_query_succeeds(
+    worker: RedshiftWorker, legal_ops_caller: CallerContext
+) -> None:
+    """A failed execute leaves the connection in an aborted-transaction
+    state on Postgres-emulated Redshift. Without rollback, the next
+    valid query fails with `current transaction is aborted, commands
+    ignored until end of transaction block`. The worker must rollback
+    in its except branch so subsequent calls on the same instance still
+    work.
+    """
+    # First, deliberately break the connection state by executing bad SQL
+    # at the cursor level. Use a private helper that bypasses worker.run's
+    # template machinery.
+    with pytest.raises(Exception):  # noqa: B017,PT011 - exact type varies per backend
+        worker._execute(sql="SELECT * FROM no_such_table_at_all", binds={})
+    # Now run a valid query through the worker — should NOT fail with
+    # "current transaction is aborted".
+    packet = worker.run(
+        query_type="matter_lookup",
+        params={"matter_id": "matter_acme"},
+        caller=legal_ops_caller,
+    )
+    assert isinstance(packet, ResultPacket)
+    assert packet.row_count == 1

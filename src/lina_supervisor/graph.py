@@ -52,7 +52,10 @@ def build_graph(
 
     graph: Any = StateGraph(SupervisorState)
     graph.add_node("route", _make_route_node(config=config, client=llm_client))
-    graph.add_node("execute_tools", _make_execute_tools_node(hub=hub))
+    graph.add_node(
+        "execute_tools",
+        _make_execute_tools_node(hub=hub, max_worker_calls=config.max_worker_calls),
+    )
     graph.add_node(
         "synthesize",
         _make_synthesize_node(config=config, client=llm_client),
@@ -103,15 +106,28 @@ def _make_route_node(
     return route_node
 
 
-def _make_execute_tools_node(*, hub: WorkerHub) -> Callable[[SupervisorState], dict[str, Any]]:
+def _make_execute_tools_node(
+    *,
+    hub: WorkerHub,
+    max_worker_calls: int,
+) -> Callable[[SupervisorState], dict[str, Any]]:
     def execute_tools_node(state: SupervisorState) -> dict[str, Any]:
         last_message = state["messages"][-1]
         assert last_message["role"] == "assistant"
 
         tool_calls = last_message.get("tool_calls") or []
+        # Enforce the worker-call budget BEFORE dispatch. If the LLM
+        # returned more calls than we have budget for in this turn,
+        # execute as many as fit and synthesize a "skipped due to
+        # budget" tool reply for each dropped call so the model doesn't
+        # see a missing reply for a tool_call_id it issued.
+        remaining = max(0, max_worker_calls - state["worker_call_count"])
+        executable_calls = tool_calls[:remaining]
+        skipped_calls = tool_calls[remaining:]
+
         new_messages: list[dict[str, Any]] = []
         new_packets: list[dict[str, Any]] = []
-        for call in tool_calls:
+        for call in executable_calls:
             function = call["function"]
             tool_name = function["name"]
             arguments_raw = function.get("arguments") or "{}"
@@ -133,10 +149,33 @@ def _make_execute_tools_node(*, hub: WorkerHub) -> Callable[[SupervisorState], d
                 }
             )
 
+        for call in skipped_calls:
+            skipped_packet = {
+                "source_engine": "supervisor",
+                "result_type": "budget_exceeded",
+                "error": {
+                    "type": "WorkerCallBudgetExceeded",
+                    "message": (
+                        f"max_worker_calls={max_worker_calls} reached; this "
+                        "tool call was not dispatched. Compose your final "
+                        "answer from the data already returned."
+                    ),
+                },
+            }
+            new_packets.append(skipped_packet)
+            new_messages.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": call["id"],
+                    "content": json.dumps(skipped_packet, default=str),
+                }
+            )
+
         return {
             "messages": [*state["messages"], *new_messages],
-            "worker_call_count": state["worker_call_count"] + len(tool_calls),
+            "worker_call_count": state["worker_call_count"] + len(executable_calls),
             "worker_packets": [*state["worker_packets"], *new_packets],
+            "truncated": state.get("truncated", False) or bool(skipped_calls),
         }
 
     return execute_tools_node

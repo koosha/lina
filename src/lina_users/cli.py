@@ -76,8 +76,11 @@ def seed_cmd(ctx: click.Context, reset: bool, named_only: bool, bulk_only: bool)
     client = _get_client(ctx)
     if named_only:
         runner = IndexRunner(client=client, mappings_dir=_mappings_dir())
-        if reset and client.indices.exists(index="corp_user_profiles_v1"):
-            client.indices.delete(index="corp_user_profiles_v1")
+        if reset:
+            if client.indices.exists(index="corp_user_profiles_v1"):
+                client.indices.delete(index="corp_user_profiles_v1")
+            if client.indices.exists(index="lina_users_index_state"):
+                client.indices.delete(index="lina_users_index_state")
         runner.apply_pending()
         actions = [
             {"_index": "corp_user_profiles_v1", "_id": d["user_id"], "_source": d}

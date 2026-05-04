@@ -52,6 +52,12 @@ const VENDOR_RESULT_TYPES = new Set([
 ]);
 
 export function packetToSource(packet: ResultPacket): FriendlySource {
+  // Prefer the explicit `source_id` set by the worker. Falls back to the
+  // legacy heuristic on responses from older Lambda images that haven't
+  // been redeployed with the Wave 3 packet shape yet.
+  if (packet.source_id && FRIENDLY_SOURCES[packet.source_id]) {
+    return FRIENDLY_SOURCES[packet.source_id];
+  }
   if (packet.source_engine === "redshift") {
     return FRIENDLY_SOURCES.matters;
   }

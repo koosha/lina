@@ -17,6 +17,7 @@ class ResultPacket(_CoreResultPacket):
         default="legal_matter_spend",
         alias="schema",
     )
+    source_id: Literal["matters"] = "matters"
 
 
 class ErrorPacket(_CoreErrorPacket):
@@ -25,6 +26,7 @@ class ErrorPacket(_CoreErrorPacket):
         default="legal_matter_spend",
         alias="schema",
     )
+    source_id: Literal["matters"] = "matters"
 
     @classmethod
     def from_exception(  # type: ignore[override]

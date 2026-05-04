@@ -251,3 +251,123 @@ def test_handler_translates_handler_exception_to_500_with_error_envelope(
     assert body["error"] == "Internal server error"
     assert body["request_id"] == "rid-3"
     assert sentinel not in response["body"]
+
+
+# ---------------------------------------------------------------------------
+# Input-size guards (Wave 3 / P1.7)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_handler_rejects_request_body_over_max_bytes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    secrets = _stub_secrets_client()
+    monkeypatch.setattr(lambda_handler, "_secrets_client", secrets)
+    monkeypatch.setattr(lambda_handler, "_MAX_BODY_BYTES", 200)
+
+    big = "x" * 500
+    response = lambda_handler.handler(
+        {
+            "body": json.dumps({"user_id": "u", "query": big}),
+            "requestContext": {"requestId": "rid-big"},
+        },
+        None,
+        _build_workers=lambda **_: (None, None),
+        _build_llm=_stub_llm_client_factory(_llm_with_text("x")),
+    )
+    assert response["statusCode"] == 413
+    body = json.loads(response["body"])
+    assert "too large" in body["error"]
+    assert body["request_id"] == "rid-big"
+
+
+@pytest.mark.unit
+def test_handler_rejects_query_over_max_chars(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    secrets = _stub_secrets_client()
+    monkeypatch.setattr(lambda_handler, "_secrets_client", secrets)
+    monkeypatch.setattr(lambda_handler, "_MAX_QUERY_CHARS", 50)
+
+    response = lambda_handler.handler(
+        {
+            "body": json.dumps({"user_id": "u", "query": "y" * 200}),
+            "requestContext": {"requestId": "rid-q"},
+        },
+        None,
+        _build_workers=lambda **_: (None, None),
+        _build_llm=_stub_llm_client_factory(_llm_with_text("x")),
+    )
+    assert response["statusCode"] == 400
+    assert "exceeds 50 characters" in json.loads(response["body"])["error"]
+
+
+@pytest.mark.unit
+def test_handler_rejects_history_over_max_turns(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    secrets = _stub_secrets_client()
+    monkeypatch.setattr(lambda_handler, "_secrets_client", secrets)
+    monkeypatch.setattr(lambda_handler, "_MAX_HISTORY_TURNS", 3)
+
+    history = [{"role": "user", "content": "hi"}] * 10
+    response = lambda_handler.handler(
+        {
+            "body": json.dumps({"user_id": "u", "query": "q", "history": history}),
+            "requestContext": {"requestId": "rid-h"},
+        },
+        None,
+        _build_workers=lambda **_: (None, None),
+        _build_llm=_stub_llm_client_factory(_llm_with_text("x")),
+    )
+    assert response["statusCode"] == 400
+    assert "exceeds 3 turns" in json.loads(response["body"])["error"]
+
+
+@pytest.mark.unit
+def test_handler_rejects_history_message_over_max_message_chars(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    secrets = _stub_secrets_client()
+    monkeypatch.setattr(lambda_handler, "_secrets_client", secrets)
+    monkeypatch.setattr(lambda_handler, "_MAX_HISTORY_MESSAGE_CHARS", 10)
+
+    history = [{"role": "user", "content": "this content exceeds the limit"}]
+    response = lambda_handler.handler(
+        {
+            "body": json.dumps({"user_id": "u", "query": "q", "history": history}),
+            "requestContext": {"requestId": "rid-m"},
+        },
+        None,
+        _build_workers=lambda **_: (None, None),
+        _build_llm=_stub_llm_client_factory(_llm_with_text("x")),
+    )
+    assert response["statusCode"] == 400
+    assert "history message exceeds" in json.loads(response["body"])["error"]
+
+
+@pytest.mark.unit
+def test_handler_rejects_history_total_chars_over_cap(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    secrets = _stub_secrets_client()
+    monkeypatch.setattr(lambda_handler, "_secrets_client", secrets)
+    monkeypatch.setattr(lambda_handler, "_MAX_HISTORY_MESSAGE_CHARS", 100)
+    monkeypatch.setattr(lambda_handler, "_MAX_TOTAL_HISTORY_CHARS", 30)
+
+    history = [
+        {"role": "user", "content": "x" * 20},
+        {"role": "assistant", "content": "x" * 20},
+    ]
+    response = lambda_handler.handler(
+        {
+            "body": json.dumps({"user_id": "u", "query": "q", "history": history}),
+            "requestContext": {"requestId": "rid-t"},
+        },
+        None,
+        _build_workers=lambda **_: (None, None),
+        _build_llm=_stub_llm_client_factory(_llm_with_text("x")),
+    )
+    assert response["statusCode"] == 400
+    assert "total content exceeds" in json.loads(response["body"])["error"]

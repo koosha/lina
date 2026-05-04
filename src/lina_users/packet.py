@@ -17,6 +17,7 @@ class ResultPacket(_CoreResultPacket):
         default="corp_user_profiles_v1",
         alias="schema",
     )
+    source_id: Literal["people"] = "people"
 
 
 class ErrorPacket(_CoreErrorPacket):
@@ -25,6 +26,7 @@ class ErrorPacket(_CoreErrorPacket):
         default="corp_user_profiles_v1",
         alias="schema",
     )
+    source_id: Literal["people"] = "people"
 
     @classmethod
     def from_exception(  # type: ignore[override]

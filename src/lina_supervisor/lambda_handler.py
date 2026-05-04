@@ -28,6 +28,27 @@ from lina_supervisor.workers import WorkerHub
 _LOG = logging.getLogger(__name__)
 
 
+def _env_int(name: str, default: int) -> int:
+    raw = os.environ.get(name)
+    if raw is None or raw == "":
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        return default
+
+
+# Input-size guards. Configurable at deploy time so operators can tighten
+# them before opening the demo URL beyond a handful of trusted users.
+# Defaults match the Wave 3 sandbox suggestions in
+# docs/plans/2026-05-04-remediation.md.
+_MAX_BODY_BYTES = _env_int("LINA_MAX_BODY_BYTES", 64 * 1024)
+_MAX_QUERY_CHARS = _env_int("LINA_MAX_QUERY_CHARS", 4_000)
+_MAX_HISTORY_TURNS = _env_int("LINA_MAX_HISTORY_TURNS", 20)
+_MAX_HISTORY_MESSAGE_CHARS = _env_int("LINA_MAX_HISTORY_MESSAGE_CHARS", 4_000)
+_MAX_TOTAL_HISTORY_CHARS = _env_int("LINA_MAX_TOTAL_HISTORY_CHARS", 20_000)
+
+
 def _make_secrets_client() -> Any:
     """Construct the boto3 Secrets Manager client lazily.
 
@@ -164,8 +185,13 @@ def handler(
     """
     request_id = (event.get("requestContext") or {}).get("requestId") or "lambda-req"
     try:
+        raw_body = event.get("body") or "{}"
+        # Use byte length (UTF-8) since `event["body"]` is a str when API
+        # Gateway didn't base64-encode it. This caps total wire size.
+        if len(raw_body.encode("utf-8")) > _MAX_BODY_BYTES:
+            return _error_response(413, "request body too large", request_id=request_id)
         try:
-            body = json.loads(event.get("body") or "{}")
+            body = json.loads(raw_body)
         except json.JSONDecodeError:
             return _error_response(400, "request body must be valid JSON", request_id=request_id)
         user_id = body.get("user_id", "")
@@ -175,10 +201,43 @@ def handler(
             return _error_response(400, "user_id is required", request_id=request_id)
         if not query:
             return _error_response(400, "query is required", request_id=request_id)
+        if not isinstance(query, str) or len(query) > _MAX_QUERY_CHARS:
+            return _error_response(
+                400,
+                f"query exceeds {_MAX_QUERY_CHARS} characters",
+                request_id=request_id,
+            )
         if not isinstance(history, list):
             return _error_response(
                 400,
                 "history must be a list of {role, content} entries",
+                request_id=request_id,
+            )
+        if len(history) > _MAX_HISTORY_TURNS:
+            return _error_response(
+                400,
+                f"history exceeds {_MAX_HISTORY_TURNS} turns",
+                request_id=request_id,
+            )
+        # Per-message and total caps — defense against a client paginating
+        # an unbounded conversation through the same endpoint.
+        total_history_chars = 0
+        for turn in history:
+            if not isinstance(turn, dict):
+                continue
+            content = turn.get("content")
+            if isinstance(content, str):
+                if len(content) > _MAX_HISTORY_MESSAGE_CHARS:
+                    return _error_response(
+                        400,
+                        f"history message exceeds {_MAX_HISTORY_MESSAGE_CHARS} characters",
+                        request_id=request_id,
+                    )
+                total_history_chars += len(content)
+        if total_history_chars > _MAX_TOTAL_HISTORY_CHARS:
+            return _error_response(
+                400,
+                f"history total content exceeds {_MAX_TOTAL_HISTORY_CHARS} characters",
                 request_id=request_id,
             )
 

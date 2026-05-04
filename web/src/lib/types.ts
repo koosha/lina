@@ -4,6 +4,13 @@ export type SourceEngine = "redshift" | "opensearch";
 
 export interface ResultPacket {
   source_engine: SourceEngine;
+  /**
+   * Stable user-facing source group ("matters" | "people" | "counsel").
+   * Added by the workers in Wave 3 — preferred over the result_type
+   * heuristic. May be missing on older deployments; fall back to
+   * source_engine + result_type when absent.
+   */
+  source_id?: FriendlySourceId;
   result_type: string;
   metrics?: Array<Record<string, unknown>>;
   rows?: Array<Record<string, unknown>>;

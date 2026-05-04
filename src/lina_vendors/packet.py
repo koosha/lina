@@ -17,6 +17,7 @@ class ResultPacket(_CoreResultPacket):
         default="vendor_lawyer_profiles_v1",
         alias="schema",
     )
+    source_id: Literal["counsel"] = "counsel"
 
 
 class ErrorPacket(_CoreErrorPacket):
@@ -25,6 +26,7 @@ class ErrorPacket(_CoreErrorPacket):
         default="vendor_lawyer_profiles_v1",
         alias="schema",
     )
+    source_id: Literal["counsel"] = "counsel"
 
     @classmethod
     def from_exception(  # type: ignore[override]

@@ -123,6 +123,25 @@ aws --profile lina-sandbox lambda update-function-code \
   --image-uri "$ECR_URL:$NEW_TAG"
 ```
 
+## Synchronous /ask request budget
+
+The chat path is synchronous through API Gateway → Lambda → OpenAI →
+Redshift/OpenSearch → response. Three timeouts shape the budget:
+
+- **API Gateway integration timeout:** 30 s (hard cap; not configurable
+  on HTTP APIs without raising a quota).
+- **OpenAI client timeout:** 25 s (default, settable via
+  `LINA_SUPERVISOR_REQUEST_TIMEOUT_SECONDS`).
+- **Redshift `connect_timeout`:** 5 s (settable via
+  `LINA_REDSHIFT_CONNECT_TIMEOUT`); statement timeout 25 s
+  (`LINA_STATEMENT_TIMEOUT_MS`).
+
+Total expected per-request budget under normal load: ~25 s. Exceeding
+this returns 504 from API Gateway, which the UI surfaces as "Lina
+isn't reachable right now." If a use case needs longer answers, switch
+to an async or streaming path — don't just bump the Lambda timeout
+since API Gateway will still cut off at 30 s.
+
 ## 5. Tear-down
 
 ```bash

@@ -37,16 +37,74 @@ def resolve_config(target: Target = "redshift") -> ConnectionConfig:
     return ConnectionConfig(dsn=dsn, target=target, statement_timeout_ms=int(timeout_str))
 
 
+def apply_session_settings(
+    conn: PgConnection,
+    *,
+    statement_timeout_ms: int = 30_000,
+    read_only: bool = True,
+) -> None:
+    """Apply Lina's runtime session GUCs to a freshly-opened connection.
+
+    Used by both the CLI (DSN path, via ``open_connection``) and the Lambda
+    (keyword-args path) so the chat runtime always has the same statement
+    timeout and read-only posture regardless of how the connection was
+    opened.
+    """
+    with conn.cursor() as cur:
+        cur.execute("SET statement_timeout = %s", (statement_timeout_ms,))
+        if read_only:
+            cur.execute("SET default_transaction_read_only = on")
+            cur.execute("SET transaction_read_only = on")
+
+
+def connect_with_kwargs(
+    *,
+    host: str,
+    port: int,
+    dbname: str,
+    user: str,
+    password: str,
+    connect_timeout: int = 5,
+    statement_timeout_ms: int = 30_000,
+    read_only: bool = True,
+) -> PgConnection:
+    """Open a runtime connection from explicit fields, applying Lina settings.
+
+    Prefer this over building a ``postgresql://...`` DSN by string
+    interpolation: f-string interpolation breaks if the password contains
+    URL-sensitive characters (``@``, ``/``, ``:``, ``#``, ``%`` …) and
+    psycopg2 would silently misparse the host.
+
+    Caller is responsible for closing the connection.
+    """
+    conn = psycopg2.connect(
+        host=host,
+        port=port,
+        dbname=dbname,
+        user=user,
+        password=password,
+        connect_timeout=connect_timeout,
+    )
+    try:
+        apply_session_settings(
+            conn, statement_timeout_ms=statement_timeout_ms, read_only=read_only
+        )
+    except Exception:
+        conn.close()
+        raise
+    return conn
+
+
 @contextmanager
 def open_connection(config: ConnectionConfig, *, read_only: bool = True) -> Iterator[PgConnection]:
     """Open a connection with read-only and statement-timeout GUCs applied."""
     conn = psycopg2.connect(config.dsn)
     try:
-        with conn.cursor() as cur:
-            cur.execute("SET statement_timeout = %s", (config.statement_timeout_ms,))
-            if read_only:
-                cur.execute("SET default_transaction_read_only = on")
-                cur.execute("SET transaction_read_only = on")
+        apply_session_settings(
+            conn,
+            statement_timeout_ms=config.statement_timeout_ms,
+            read_only=read_only,
+        )
         yield conn
     finally:
         conn.close()

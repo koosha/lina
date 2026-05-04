@@ -25,7 +25,11 @@ class SupervisorConfig:
     max_worker_calls: int = 8
     route_max_tokens: int = 2048
     synthesize_max_tokens: int = 4096
-    request_timeout_seconds: int = 60
+    # Default sized to fit inside API Gateway's 30 s integration timeout
+    # with a 5 s margin for Lambda startup, Redshift round-trips, and
+    # response serialization. Override with LINA_SUPERVISOR_REQUEST_TIMEOUT_SECONDS
+    # if the deployment uses an async / streaming path.
+    request_timeout_seconds: int = 25
     # gpt-5.x family parameter; "none" means treat as a non-reasoning chat model.
     # Ignored on chat.completions calls when set to "none".
     reasoning_effort: ReasoningEffort = "none"
@@ -48,7 +52,7 @@ def resolve_config() -> SupervisorConfig:
         route_max_tokens=int(os.environ.get("LINA_SUPERVISOR_ROUTE_MAX_TOKENS", "2048")),
         synthesize_max_tokens=int(os.environ.get("LINA_SUPERVISOR_SYNTHESIZE_MAX_TOKENS", "4096")),
         request_timeout_seconds=int(
-            os.environ.get("LINA_SUPERVISOR_REQUEST_TIMEOUT_SECONDS", "60")
+            os.environ.get("LINA_SUPERVISOR_REQUEST_TIMEOUT_SECONDS", "25")
         ),
         reasoning_effort=reasoning_effort,  # type: ignore[arg-type]
     )

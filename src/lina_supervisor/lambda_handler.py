@@ -55,24 +55,39 @@ def _get_openai_key() -> str:
     return _OPENAI_KEY_CACHE["value"]
 
 
-def _redshift_dsn() -> str:
-    """Build a psycopg2 DSN from the Redshift admin secret."""
+def _redshift_connect_kwargs() -> dict[str, Any]:
+    """Read the Redshift admin secret + env to build keyword args.
+
+    Keyword args avoid the silent breakage f-string DSNs hit when the
+    password contains URL-sensitive characters (``@``, ``/``, ``:``, ``#``,
+    ``%``) — psycopg2 would misparse the host or refuse the connection.
+    """
     arn = os.environ["LINA_REDSHIFT_SECRET_ARN"]
     secret = _secrets_client.get_secret_value(SecretId=arn)
     payload = json.loads(secret["SecretString"])
-    user = payload.get("username", "lina_admin")
-    password = payload["password"]
-    host = os.environ["LINA_REDSHIFT_HOST"]
-    port = payload.get("port", 5439)
-    database = payload.get("dbname", "dev")
-    return f"postgresql://{user}:{password}@{host}:{port}/{database}"
+    return {
+        "host": os.environ["LINA_REDSHIFT_HOST"],
+        "port": int(payload.get("port", 5439)),
+        "dbname": payload.get("dbname", "dev"),
+        "user": payload.get("username", "lina_admin"),
+        "password": payload["password"],
+    }
 
 
 def _build_llm_default(*, config: SupervisorConfig) -> Any:
-    """Default OpenAI client builder. Substitutable in unit tests."""
+    """Default OpenAI client builder. Substitutable in unit tests.
+
+    Applies ``config.request_timeout_seconds`` so a hung upstream call
+    doesn't blow past API Gateway's 30-second integration timeout while
+    Lambda keeps burning compute and the client sees a generic gateway
+    timeout instead of our error envelope.
+    """
     from openai import OpenAI
 
-    return OpenAI(api_key=config.openai_api_key)
+    return OpenAI(
+        api_key=config.openai_api_key,
+        timeout=config.request_timeout_seconds,
+    )
 
 
 def _build_workers_default(
@@ -90,8 +105,7 @@ def _build_workers_default(
     """
     _ = config  # config kept in signature for future per-config tuning
     _ = secrets_client  # passed through for potential per-call overrides
-    import psycopg2
-
+    from lina_redshift.connection import connect_with_kwargs
     from lina_redshift.worker import RedshiftWorker
     from lina_users.worker import UserSearchWorker
     from lina_vendors.worker import VendorSearchWorker
@@ -101,7 +115,12 @@ def _build_workers_default(
         auth_mode="aws_sigv4",
         aws_region=os.environ.get("AWS_REGION", "us-east-1"),
     )
-    rs_connection = psycopg2.connect(_redshift_dsn())
+    rs_connection = connect_with_kwargs(
+        connect_timeout=int(os.environ.get("LINA_REDSHIFT_CONNECT_TIMEOUT", "5")),
+        statement_timeout_ms=int(os.environ.get("LINA_STATEMENT_TIMEOUT_MS", "25000")),
+        read_only=True,
+        **_redshift_connect_kwargs(),
+    )
     redshift_worker = RedshiftWorker(connection=rs_connection)
     users_worker = UserSearchWorker(client=os_client, config=os_config)
     vendors_worker = VendorSearchWorker(client=os_client, config=os_config)

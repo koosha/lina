@@ -31,13 +31,24 @@ fi
 # Use --no-emit-project so the lina-* packages themselves aren't pinned
 # (they're copied directly into the image). --no-dev excludes pytest etc.
 GEN="$(mktemp)"
-trap 'rm -f "$GEN"' EXIT
+RAW="$(mktemp)"
+trap 'rm -f "$GEN" "$RAW"' EXIT
 "$UV_BIN" export \
   --frozen \
   --no-dev \
   --no-emit-project \
   --directory "$REPO_ROOT" \
-  > "$GEN"
+  > "$RAW"
+
+# uv embeds the absolute --directory path in the auto-generated header
+# comment, which makes the file environment-dependent (developer's
+# laptop vs CI runner's checkout root). Strip the comment block so the
+# file is byte-stable across environments.
+awk '
+  BEGIN { in_header = 1 }
+  /^[^#]/ { in_header = 0 }
+  in_header == 0 { print }
+' "$RAW" > "$GEN"
 
 if [[ "$CHECK" -eq 1 ]]; then
   if ! diff -q "$GEN" "$TARGET" >/dev/null 2>&1; then

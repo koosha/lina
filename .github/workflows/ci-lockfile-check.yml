@@ -1,0 +1,31 @@
+name: lockfile-check
+
+# Cheap PR check: verifies deploy/lambda/requirements.txt is regenerated
+# from uv.lock. No AWS credentials needed.
+
+on:
+  pull_request:
+    paths:
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - 'deploy/lambda/requirements.txt'
+      - 'deploy/lambda/regen-requirements.sh'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lockfile-in-sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: latest
+
+      - name: Verify deploy/lambda/requirements.txt matches uv.lock
+        run: ./deploy/lambda/regen-requirements.sh --check

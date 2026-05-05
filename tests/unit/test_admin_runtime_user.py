@@ -109,6 +109,7 @@ def test_bootstrap_writes_secret_when_arn_supplied() -> None:
     # SecretString is a JSON envelope readable by the same Lambda code path
     # that already parses the admin secret.
     import json
+
     payload = json.loads(call_kwargs["SecretString"])
     assert payload == {"username": RUNTIME_USERNAME, "password": "abc-123"}
     assert result.secret_arn == "arn:aws:secretsmanager:us-east-1:0:secret:foo"

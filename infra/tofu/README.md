@@ -2,7 +2,7 @@
 
 This module provisions a demo-grade hosted sandbox for LINA on AWS account
 `417811547857` in `us-east-1`. The architecture is described in
-[`docs/design/2026-05-03-lina-aws-sandbox-design.md`](../../docs/design/2026-05-03-lina-aws-sandbox-design.md).
+[`docs/design/archive/2026-05-03-lina-aws-sandbox-design.md`](../../docs/design/archive/2026-05-03-lina-aws-sandbox-design.md).
 
 State is stored in the shared S3 backend `lina-tofu-state-417811547857` under
 key `sandbox/terraform.tfstate`, with DynamoDB-backed locks in
@@ -38,7 +38,7 @@ read from S3 and acquire the DynamoDB lock.
 - **OpenTofu 1.11+** on the PATH. Apple Silicon operators running the x86_64
   build under Rosetta should set `PLUGIN_PROTOCOL_TIMEOUT=300` so the AWS
   provider has time to boot under emulation.
-- **Docker** for the post-apply image build step (see `deploy/runbook.md`).
+- **Docker** for the post-apply image build step (see `docs/runbooks/deploy.md`).
 - **AWS Budgets** alert at $50/month (operator-configured outside this module).
 
 ## First-time bootstrap
@@ -57,7 +57,7 @@ The `apply` step creates ~22 resources. Wall time is dominated by OpenSearch
 domain provisioning (~15 minutes); Redshift Serverless namespace + workgroup
 take ~2 minutes; the rest are sub-minute.
 
-After `apply` completes, follow `deploy/runbook.md` for the build/push/migrate/
+After `apply` completes, follow `docs/runbooks/deploy.md` for the build/push/migrate/
 seed/smoke-test sequence — those steps live outside the IaC because they are
 per-image-version operator actions.
 
@@ -114,7 +114,7 @@ log groups, and Secrets Manager secrets (7-day recovery window honored).
 - **Redshift namespace `creating` for ~2 min** — also expected.
 - **Lambda invocations 500 right after apply** — the chat Lambda holds the
   ECR image URI but the image hasn't been pushed yet. Run the build/push
-  step from `deploy/runbook.md` and the next invocation succeeds.
+  step from `docs/runbooks/deploy.md` and the next invocation succeeds.
 - **`tofu validate`/`apply` reports `timeout while waiting for plugin to
   start`** — the AWS provider binary is x86_64 only and Rosetta startup
   exceeds OpenTofu's default 60-second plugin timeout. Re-run with

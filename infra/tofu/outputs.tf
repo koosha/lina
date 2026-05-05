@@ -45,7 +45,7 @@ output "openai_api_key_secret_arn" {
 
 output "next_steps_runbook" {
   description = "Pointer to the post-apply operator runbook."
-  value       = "See deploy/runbook.md for image build, migrate, seed, and smoke-test commands."
+  value       = "See docs/runbooks/deploy.md for image build, migrate, seed, and smoke-test commands."
 }
 
 output "redshift_runtime_secret_arn" {

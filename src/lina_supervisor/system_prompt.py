@@ -124,7 +124,7 @@ def _format_schemas_section() -> str:
         for query_type in sorted(registry.keys()):
             template = registry[query_type]
             schema = _shrink_schema(template.Params.model_json_schema())
-            sections.append(f"- query_type=\"{query_type}\":")
+            sections.append(f'- query_type="{query_type}":')
             sections.append("  " + json.dumps(schema, separators=(",", ":")))
         sections.append("")
     return "\n".join(sections)

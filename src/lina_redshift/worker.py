@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import time
 from typing import Any
 
@@ -136,12 +137,9 @@ class RedshiftWorker:
             # After any psycopg2 error the connection sits in an aborted
             # transaction state until rolled back; subsequent valid queries
             # would otherwise fail with "current transaction is aborted".
-            # Roll back unconditionally and swallow rollback errors so the
-            # original exception remains the surfaced one.
-            try:
+            # Suppress rollback failures so they never mask the real error.
+            with contextlib.suppress(Exception):
                 self._conn.rollback()
-            except Exception:  # noqa: BLE001 - never let rollback mask the real error
-                pass
             msg = str(exc).lower()
             if "statement timeout" in msg or "canceling statement due to" in msg:
                 raise QueryTimeoutError(str(exc)) from exc

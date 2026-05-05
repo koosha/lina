@@ -22,15 +22,17 @@ def _resolve_pg_ctl() -> str | None:
     `pg_ctl` is on PATH (Linux CI runners ship Postgres at /usr/lib/...).
     Returns None to let pytest-postgresql do its own discovery.
     """
+    from pathlib import Path
+
     override = os.environ.get("LINA_PG_CTL_PATH")
     if override:
-        return override if os.path.isfile(override) else None
+        return override if Path(override).is_file() else None
     candidates = [
         "/usr/local/opt/postgresql@16/bin/pg_ctl",
         "/opt/homebrew/opt/postgresql@16/bin/pg_ctl",
     ]
     for c in candidates:
-        if os.path.isfile(c):
+        if Path(c).is_file():
             return c
     return shutil.which("pg_ctl")
 

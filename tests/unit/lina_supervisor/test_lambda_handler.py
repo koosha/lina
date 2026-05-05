@@ -387,18 +387,18 @@ def test_redshift_connect_kwargs_prefers_runtime_secret_when_set(
     monkeypatch.setenv("LINA_REDSHIFT_HOST", "rs.example.com")
 
     secrets = MagicMock()
+
     def _get(SecretId: str) -> dict[str, str]:  # noqa: N803 - boto3 kwarg name
         if SecretId == "arn:rt":
             return {
-                "SecretString": json.dumps(
-                    {"username": "lina_app_readonly", "password": "rt-pass"}
-                )
+                "SecretString": json.dumps({"username": "lina_app_readonly", "password": "rt-pass"})
             }
         return {
             "SecretString": json.dumps(
                 {"username": "lina_admin", "password": "admin-pass", "port": 5439, "dbname": "dev"}
             )
         }
+
     secrets.get_secret_value.side_effect = _get
     monkeypatch.setattr(lambda_handler, "_secrets_client", secrets)
 
@@ -445,12 +445,12 @@ def test_redshift_connect_kwargs_falls_back_when_runtime_secret_empty(
     monkeypatch.setenv("LINA_REDSHIFT_HOST", "rs.example.com")
 
     secrets = MagicMock()
+
     def _get(SecretId: str) -> dict[str, str]:  # noqa: N803
         if SecretId == "arn:rt":
             raise RuntimeError("ResourceNotFoundException")
-        return {
-            "SecretString": json.dumps({"username": "lina_admin", "password": "admin-pass"})
-        }
+        return {"SecretString": json.dumps({"username": "lina_admin", "password": "admin-pass"})}
+
     secrets.get_secret_value.side_effect = _get
     monkeypatch.setattr(lambda_handler, "_secrets_client", secrets)
 

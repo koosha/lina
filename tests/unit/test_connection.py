@@ -87,7 +87,7 @@ def test_connect_with_kwargs_passes_each_field_to_psycopg2(
     captured: dict[str, object] = {}
 
     class _FakeCursor:
-        def __enter__(self) -> "_FakeCursor":
+        def __enter__(self) -> _FakeCursor:
             return self
 
         def __exit__(self, *_a: object) -> None:
@@ -138,7 +138,7 @@ def test_connect_with_kwargs_applies_session_settings(monkeypatch: pytest.Monkey
     executed: list[tuple[str, object]] = []
 
     class _FakeCursor:
-        def __enter__(self) -> "_FakeCursor":
+        def __enter__(self) -> _FakeCursor:
             return self
 
         def __exit__(self, *_a: object) -> None:
@@ -157,8 +157,13 @@ def test_connect_with_kwargs_applies_session_settings(monkeypatch: pytest.Monkey
     monkeypatch.setattr(conn_module.psycopg2, "connect", lambda **_: _FakeConn())
 
     conn_module.connect_with_kwargs(
-        host="h", port=5439, dbname="d", user="u", password="p",
-        statement_timeout_ms=12345, read_only=True,
+        host="h",
+        port=5439,
+        dbname="d",
+        user="u",
+        password="p",
+        statement_timeout_ms=12345,
+        read_only=True,
     )
 
     sqls = [s for s, _ in executed]
@@ -181,7 +186,7 @@ def test_connect_with_kwargs_closes_conn_if_session_settings_fail(
     closed = {"value": False}
 
     class _BadCursor:
-        def __enter__(self) -> "_BadCursor":
+        def __enter__(self) -> _BadCursor:
             return self
 
         def __exit__(self, *_a: object) -> None:
@@ -201,6 +206,10 @@ def test_connect_with_kwargs_closes_conn_if_session_settings_fail(
 
     with pytest.raises(RuntimeError, match="bad GUC"):
         conn_module.connect_with_kwargs(
-            host="h", port=5439, dbname="d", user="u", password="p",
+            host="h",
+            port=5439,
+            dbname="d",
+            user="u",
+            password="p",
         )
     assert closed["value"] is True

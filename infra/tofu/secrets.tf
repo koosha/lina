@@ -1,5 +1,5 @@
 # OpenAI key — secret container only. The value is set out-of-band via
-# `aws secretsmanager put-secret-value` (see deploy/runbook.md) so the
+# `aws secretsmanager put-secret-value` (see docs/runbooks/deploy.md) so the
 # plaintext key never lands in Tofu state. A `sensitive` variable is
 # still read by Tofu's CLI in plaintext at apply time and persists in
 # state, which defeats the point.

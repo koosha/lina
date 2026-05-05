@@ -47,3 +47,13 @@ output "next_steps_runbook" {
   description = "Pointer to the post-apply operator runbook."
   value       = "See deploy/runbook.md for image build, migrate, seed, and smoke-test commands."
 }
+
+output "redshift_runtime_secret_arn" {
+  description = "ARN of the lina_app_readonly Redshift runtime secret. Bootstrapped via `lina-redshift bootstrap-runtime-user --put-secret-arn <this>`."
+  value       = aws_secretsmanager_secret.redshift_runtime.arn
+}
+
+output "alarms_topic_arn" {
+  description = "SNS topic that receives CloudWatch alarm notifications. Subscribe an operator email out-of-band."
+  value       = aws_sns_topic.alarms.arn
+}

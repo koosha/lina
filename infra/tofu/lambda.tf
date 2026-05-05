@@ -31,6 +31,9 @@ data "aws_iam_policy_document" "lambda_secrets" {
     resources = [
       aws_secretsmanager_secret.openai_api_key.arn,
       aws_secretsmanager_secret.api_key.arn,
+      aws_secretsmanager_secret.redshift_runtime.arn,
+      # Admin secret retained for backward compat during the cutover; once
+      # the Lambda is fully on the runtime user we can drop this entry.
       aws_redshiftserverless_namespace.this.admin_password_secret_arn,
     ]
   }
@@ -174,10 +177,16 @@ resource "aws_lambda_function" "chat" {
 
   environment {
     variables = {
-      LINA_OPENSEARCH_HOST     = "https://${aws_opensearch_domain.this.endpoint}"
-      LINA_OPENSEARCH_AUTH     = "aws_sigv4"
-      LINA_AWS_REGION          = var.aws_region
-      LINA_OPENAI_SECRET_ARN   = aws_secretsmanager_secret.openai_api_key.arn
+      LINA_OPENSEARCH_HOST = "https://${aws_opensearch_domain.this.endpoint}"
+      LINA_OPENSEARCH_AUTH = "aws_sigv4"
+      LINA_AWS_REGION      = var.aws_region
+      LINA_OPENAI_SECRET_ARN = aws_secretsmanager_secret.openai_api_key.arn
+      # Runtime user (read-only) — preferred. Bootstrapped via
+      # `lina-redshift bootstrap-runtime-user --put-secret-arn <this>`.
+      LINA_REDSHIFT_RUNTIME_SECRET_ARN = aws_secretsmanager_secret.redshift_runtime.arn
+      # Admin secret retained as fallback during the cutover so the
+      # Lambda can still serve traffic if the runtime secret hasn't
+      # been bootstrapped yet. Drop once the cutover is verified.
       LINA_REDSHIFT_SECRET_ARN = aws_redshiftserverless_namespace.this.admin_password_secret_arn
       LINA_REDSHIFT_HOST       = aws_redshiftserverless_workgroup.this.endpoint[0].address
       LINA_SUPERVISOR_MODEL    = "gpt-5.2"

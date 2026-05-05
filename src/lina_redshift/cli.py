@@ -199,5 +199,74 @@ def explain_cmd(ctx: click.Context, query_type: str, params: str) -> None:
     )
 
 
+@main.command("bootstrap-runtime-user")
+@click.option(
+    "--put-secret-arn",
+    default=None,
+    help=(
+        "If provided, write the new password to this Secrets Manager secret "
+        "ARN as a JSON envelope `{username, password}`. The chat Lambda "
+        "reads that secret at cold start."
+    ),
+)
+@click.option(
+    "--password",
+    default=None,
+    help="Override the generated password (test/local use only).",
+)
+@click.option(
+    "--schema",
+    default="public",
+    show_default=True,
+    help="Schema to grant USAGE + SELECT on.",
+)
+@click.pass_context
+def bootstrap_runtime_user_cmd(
+    ctx: click.Context,
+    put_secret_arn: str | None,
+    password: str | None,
+    schema: str,
+) -> None:
+    """(Re-)create the read-only `lina_app_readonly` Redshift user.
+
+    Idempotent — re-running rotates the password and re-applies grants.
+    Connect as the admin user (LINA_REDSHIFT_DSN points at the admin
+    DSN); the bootstrap runs DROP USER IF EXISTS + CREATE USER + GRANTs
+    inside one transaction.
+    """
+    from lina_redshift.admin.runtime_user import bootstrap_runtime_user
+
+    cfg = ctx.obj["config"]
+    secrets_client = None
+    if put_secret_arn:
+        import boto3
+
+        secrets_client = boto3.client("secretsmanager")
+
+    conn = psycopg2.connect(cfg.dsn)
+    try:
+        result = bootstrap_runtime_user(
+            admin_conn=conn,
+            schema=schema,
+            password=password,
+            secrets_client=secrets_client,
+            put_secret_arn=put_secret_arn,
+        )
+    finally:
+        conn.close()
+
+    payload: dict[str, Any] = {
+        "username": result.username,
+        "granted_tables": result.granted_tables,
+        "secret_arn": result.secret_arn,
+        "secret_version_id": result.secret_version_id,
+    }
+    # Only emit the password to stdout when the caller didn't put it
+    # into Secrets Manager — they need *some* way to capture it.
+    if not result.secret_arn:
+        payload["password"] = result.password
+    click.echo(json.dumps(payload, indent=2))
+
+
 if __name__ == "__main__":
     main()

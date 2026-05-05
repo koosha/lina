@@ -371,3 +371,89 @@ def test_handler_rejects_history_total_chars_over_cap(
     )
     assert response["statusCode"] == 400
     assert "total content exceeds" in json.loads(response["body"])["error"]
+
+
+# ---------------------------------------------------------------------------
+# Redshift secret resolution (Wave 4 / P0.3) — runtime secret with admin fallback
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_redshift_connect_kwargs_prefers_runtime_secret_when_set(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("LINA_REDSHIFT_RUNTIME_SECRET_ARN", "arn:rt")
+    monkeypatch.setenv("LINA_REDSHIFT_SECRET_ARN", "arn:admin")
+    monkeypatch.setenv("LINA_REDSHIFT_HOST", "rs.example.com")
+
+    secrets = MagicMock()
+    def _get(SecretId: str) -> dict[str, str]:  # noqa: N803 - boto3 kwarg name
+        if SecretId == "arn:rt":
+            return {
+                "SecretString": json.dumps(
+                    {"username": "lina_app_readonly", "password": "rt-pass"}
+                )
+            }
+        return {
+            "SecretString": json.dumps(
+                {"username": "lina_admin", "password": "admin-pass", "port": 5439, "dbname": "dev"}
+            )
+        }
+    secrets.get_secret_value.side_effect = _get
+    monkeypatch.setattr(lambda_handler, "_secrets_client", secrets)
+
+    kwargs = lambda_handler._redshift_connect_kwargs()
+    assert kwargs["user"] == "lina_app_readonly"
+    assert kwargs["password"] == "rt-pass"
+    # Should not have been read.
+    secrets.get_secret_value.assert_called_once_with(SecretId="arn:rt")
+
+
+@pytest.mark.unit
+def test_redshift_connect_kwargs_falls_back_when_runtime_secret_unset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """No `LINA_REDSHIFT_RUNTIME_SECRET_ARN` → straight to admin."""
+    monkeypatch.delenv("LINA_REDSHIFT_RUNTIME_SECRET_ARN", raising=False)
+    monkeypatch.setenv("LINA_REDSHIFT_SECRET_ARN", "arn:admin")
+    monkeypatch.setenv("LINA_REDSHIFT_HOST", "rs.example.com")
+
+    secrets = MagicMock()
+    secrets.get_secret_value.return_value = {
+        "SecretString": json.dumps({"username": "lina_admin", "password": "admin-pass"})
+    }
+    monkeypatch.setattr(lambda_handler, "_secrets_client", secrets)
+
+    kwargs = lambda_handler._redshift_connect_kwargs()
+    assert kwargs["user"] == "lina_admin"
+    assert kwargs["password"] == "admin-pass"
+
+
+@pytest.mark.unit
+def test_redshift_connect_kwargs_falls_back_when_runtime_secret_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Runtime ARN present but no value put yet → expect admin fallback.
+
+    The Lambda is created by Tofu at the same time as the runtime secret,
+    so during the bootstrap window the runtime ARN exists but has no
+    versions. ``get_secret_value`` raises in that state. The handler
+    must fall back transparently rather than hard-failing.
+    """
+    monkeypatch.setenv("LINA_REDSHIFT_RUNTIME_SECRET_ARN", "arn:rt")
+    monkeypatch.setenv("LINA_REDSHIFT_SECRET_ARN", "arn:admin")
+    monkeypatch.setenv("LINA_REDSHIFT_HOST", "rs.example.com")
+
+    secrets = MagicMock()
+    def _get(SecretId: str) -> dict[str, str]:  # noqa: N803
+        if SecretId == "arn:rt":
+            raise RuntimeError("ResourceNotFoundException")
+        return {
+            "SecretString": json.dumps({"username": "lina_admin", "password": "admin-pass"})
+        }
+    secrets.get_secret_value.side_effect = _get
+    monkeypatch.setattr(lambda_handler, "_secrets_client", secrets)
+
+    kwargs = lambda_handler._redshift_connect_kwargs()
+    assert kwargs["user"] == "lina_admin"
+    assert kwargs["password"] == "admin-pass"

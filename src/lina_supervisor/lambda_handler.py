@@ -77,15 +77,31 @@ def _get_openai_key() -> str:
 
 
 def _redshift_connect_kwargs() -> dict[str, Any]:
-    """Read the Redshift admin secret + env to build keyword args.
+    """Read the Redshift secret + env to build keyword args.
+
+    Prefers the read-only runtime secret (`LINA_REDSHIFT_RUNTIME_SECRET_ARN`)
+    when available. Falls back to the admin secret if the runtime secret
+    is unset or hasn't had a value put into it yet (initial deploy
+    state). The fallback path matters during the cutover window — once
+    the runtime user is bootstrapped and verified in production, the
+    admin env var should be removed.
 
     Keyword args avoid the silent breakage f-string DSNs hit when the
     password contains URL-sensitive characters (``@``, ``/``, ``:``, ``#``,
     ``%``) — psycopg2 would misparse the host or refuse the connection.
     """
-    arn = os.environ["LINA_REDSHIFT_SECRET_ARN"]
-    secret = _secrets_client.get_secret_value(SecretId=arn)
-    payload = json.loads(secret["SecretString"])
+    runtime_arn = os.environ.get("LINA_REDSHIFT_RUNTIME_SECRET_ARN", "")
+    payload: dict[str, Any] | None = None
+    if runtime_arn:
+        try:
+            secret = _secrets_client.get_secret_value(SecretId=runtime_arn)
+            payload = json.loads(secret["SecretString"])
+        except Exception:  # noqa: BLE001 - fall through to admin secret
+            payload = None
+    if payload is None:
+        arn = os.environ["LINA_REDSHIFT_SECRET_ARN"]
+        secret = _secrets_client.get_secret_value(SecretId=arn)
+        payload = json.loads(secret["SecretString"])
     return {
         "host": os.environ["LINA_REDSHIFT_HOST"],
         "port": int(payload.get("port", 5439)),

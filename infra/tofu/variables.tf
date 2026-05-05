@@ -22,15 +22,11 @@ EOT
   default     = null
 }
 
-variable "openai_api_key" {
-  description = <<EOT
-OpenAI API key. Pass via TF_VAR_openai_api_key — never commit. The IaC
-writes the value into Secrets Manager (lina/sandbox/openai-api-key) on
-apply; the Lambda execution role is the only consumer.
-EOT
-  type        = string
-  sensitive   = true
-}
+# NOTE: previously `variable "openai_api_key"`. Removed in Wave 6 of the
+# remediation plan — the plaintext value would otherwise persist in Tofu
+# state. The Secrets Manager *container* is still managed by Tofu (see
+# secrets.tf), but the value is set out-of-band via the AWS CLI; see
+# deploy/runbook.md for the put-secret-value step.
 
 variable "redshift_admin_username" {
   description = "Admin username for the Redshift Serverless namespace."

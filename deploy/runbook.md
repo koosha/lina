@@ -8,6 +8,24 @@ All commands assume `aws --profile lina-sandbox` and that the working
 directory is the repo root. The local Python virtualenv at `.venv/` is used
 for `lina-redshift`, `lina-users`, `lina-vendors` CLIs.
 
+## 0. Set the OpenAI key in Secrets Manager
+
+The Tofu module manages the secret *container* but not the value — the value
+is set out-of-band so it never lands in Tofu state. Do this once after
+`tofu apply` and again whenever you rotate the key:
+
+```bash
+OPENAI_SECRET_ARN=$(tofu -chdir=infra/tofu output -raw openai_api_key_secret_arn)
+read -rsp "OpenAI key (sk-...): " OPENAI_KEY; echo
+aws --profile lina-sandbox secretsmanager put-secret-value \
+  --secret-id "$OPENAI_SECRET_ARN" \
+  --secret-string "$(jq -nc --arg k "$OPENAI_KEY" '{api_key: $k}')"
+unset OPENAI_KEY
+```
+
+The chat Lambda reads this secret on cold start and caches it across warm
+invocations.
+
 ## 1. Build and push the Lambda image
 
 ```bash
@@ -68,14 +86,56 @@ Wall-time guidance:
 - Redshift seed: ~30 s for 6k line items
 - OpenSearch: ~5 s each per CLI (mappings + bulk seed)
 
-## 3. Smoke test the public endpoint
+## 2.5. Bootstrap the read-only Redshift runtime user
+
+The chat Lambda runs as `lina_app_readonly`, not the admin role. The user is
+created by an idempotent CLI step that connects as the admin and runs
+DROP+CREATE+GRANTs in a single transaction. Re-run this any time you want
+to rotate the runtime password.
 
 ```bash
-API=$(tofu -chdir=infra/tofu output -raw api_endpoint)
-API_KEY=$(aws --profile lina-sandbox secretsmanager get-secret-value \
+# Admin DSN (from §2 above) — the bootstrap connects as lina_admin.
+RUNTIME_SECRET_ARN=$(tofu -chdir=infra/tofu output -raw redshift_runtime_secret_arn)
+
+LINA_REDSHIFT_DSN="$LINA_REDSHIFT_DSN" \
+  .venv/bin/lina-redshift bootstrap-runtime-user \
+    --put-secret-arn "$RUNTIME_SECRET_ARN"
+```
+
+Output is a JSON envelope reporting how many tables the new user was granted
+SELECT on, plus the secret version id. The password itself is written to
+Secrets Manager; the Lambda reads it on cold start.
+
+The runtime user has:
+
+- `USAGE` on `public`,
+- `SELECT` on every existing table/view in `public`,
+- `ALTER DEFAULT PRIVILEGES … GRANT SELECT ON TABLES` so future migrations
+  auto-grant SELECT to the runtime user without a follow-up step.
+
+It does **not** have INSERT/UPDATE/DELETE/CREATE — verifiable by attempting
+`INSERT INTO dim_matter ...` via the runtime DSN; the call must fail with
+`InsufficientPrivilege`.
+
+## 3. Smoke test the public endpoint
+
+Either run the automated suite (preferred — covers eight cases including
+the auth gate and the input-size limits)…
+
+```bash
+export LINA_API_BASE=$(tofu -chdir=infra/tofu output -raw api_endpoint)
+export LINA_API_KEY=$(aws --profile lina-sandbox secretsmanager get-secret-value \
   --secret-id $(tofu -chdir=infra/tofu output -raw api_key_secret_arn) \
   --query SecretString --output text \
   | jq -r .api_key)
+./scripts/post-deploy-smoke.sh
+```
+
+…or run a single curl by hand for ad-hoc checks:
+
+```bash
+API=$LINA_API_BASE
+API_KEY=$LINA_API_KEY
 
 curl -X POST "$API/ask" \
   -H "content-type: application/json" \
@@ -122,6 +182,30 @@ aws --profile lina-sandbox lambda update-function-code \
   --function-name lina-sandbox-chat \
   --image-uri "$ECR_URL:$NEW_TAG"
 ```
+
+## 4.5. Subscribe to CloudWatch alarms
+
+`tofu apply` provisions an SNS topic that all Lina alarms publish to.
+Subscribe an operator email (or a Slack/PagerDuty endpoint) once after
+the first apply:
+
+```bash
+TOPIC=$(tofu -chdir=infra/tofu output -raw alarms_topic_arn)
+aws --profile lina-sandbox sns subscribe \
+  --topic-arn "$TOPIC" \
+  --protocol email \
+  --notification-endpoint ops@example.com
+# Confirm via the link AWS emails to that address.
+```
+
+Active alarms cover:
+
+- Chat Lambda errors (any unhandled exception in the last 5 minutes).
+- Chat Lambda p95 duration > 25 s (gives a heads-up before API Gateway
+  times the request out at 30 s).
+- API Gateway 5xx on `POST /ask`.
+- Authorizer Lambda failure spike (> 5 errors in 5 minutes — sign of a
+  rotated key or brute force).
 
 ## Synchronous /ask request budget
 

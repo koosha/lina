@@ -96,48 +96,66 @@ echo "Smoke-testing $LINA_API_BASE …"
 _check_no_auth "no auth → 401" "401" \
   '{"user_id":"'"$DEMO_USER"'","query":"hi"}'
 
+# Build payloads via python so we don't have to fight bash's nested quoting
+# (apostrophes, parentheses, etc. inside the question strings would all be
+# parsed by the shell otherwise).
+_payload() {
+  python3 -c '
+import json, sys
+print(json.dumps({"user_id": sys.argv[1], "query": sys.argv[2]}))
+' "$@"
+}
+
 # 2. Valid auth + simple query → 200 with answer_text.
 _check "valid auth + simple query" "200" \
-  '{"user_id":"'"$DEMO_USER"'","query":"What is '"$DEMO_USER"''s job title and department?"}' \
+  "$(_payload "$DEMO_USER" "What job title and department does the user with user_id $DEMO_USER have?")" \
   '"answer_text"'
 
 # 3. Known matter lookup → 200 with matter_lookup packet.
 _check "known matter lookup" "200" \
-  '{"user_id":"'"$DEMO_USER"'","query":"Look up matter_acme_v_beta and tell me the name and status."}' \
+  "$(_payload "$DEMO_USER" "Look up matter_acme_v_beta and tell me the name and status.")" \
   'matter_lookup'
 
 # 4. Known vendor / outside counsel search → 200 with counsel data.
 _check "known vendor / outside counsel" "200" \
-  '{"user_id":"'"$DEMO_USER"'","query":"List partners at Walker '"$DEMO_VENDOR"' (vendor_id) with their bar admissions."}' \
+  "$(_payload "$DEMO_USER" "List partners at vendor_id $DEMO_VENDOR with their bar admissions.")" \
   '"answer_text"'
 
 # 5. Oversized query → 400 with the explicit cap message.
-big_q=$(printf 'x%.0s' $(seq 1 5000))
+big_q=$(python3 -c 'print("x"*5000)')
 _check "oversized query (>4000 chars)" "400" \
-  '{"user_id":"'"$DEMO_USER"'","query":"'"$big_q"'"}' \
+  "$(_payload "$DEMO_USER" "$big_q")" \
   'exceeds 4000'
 
 # 6. History over turn cap → 400.
-turns=$(python3 -c '
-import json
-print(json.dumps([{"role":"user","content":"x"}]*25))
-')
+big_history=$(python3 -c '
+import json, sys
+print(json.dumps({
+    "user_id": sys.argv[1],
+    "query": "hi",
+    "history": [{"role": "user", "content": "x"}] * 25,
+}))
+' "$DEMO_USER")
 _check "history > MAX_HISTORY_TURNS" "400" \
-  '{"user_id":"'"$DEMO_USER"'","query":"hi","history":'"$turns"'}' \
+  "$big_history" \
   'history exceeds'
 
 # 7. Body bigger than the cap → 413.
 big_body=$(python3 -c '
 import json
-print(json.dumps({"user_id":"u","query":"hi","filler":"x"*70000}))
+print(json.dumps({"user_id": "u", "query": "hi", "filler": "x"*70000}))
 ')
 _check "request body > LINA_MAX_BODY_BYTES" "413" \
   "$big_body" \
   'too large'
 
 # 8. Missing query field → 400 (the lambda's input-validation path).
+missing_query=$(python3 -c '
+import json, sys
+print(json.dumps({"user_id": sys.argv[1]}))
+' "$DEMO_USER")
 _check "missing query field" "400" \
-  '{"user_id":"'"$DEMO_USER"'"}' \
+  "$missing_query" \
   '"query is required"'
 
 echo

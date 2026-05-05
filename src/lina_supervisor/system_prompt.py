@@ -64,8 +64,11 @@ Concrete examples:
 - search_users user_lookup: send `params={"user_id": "user_jane_smith"}`
   (or use email or employee_id — exactly one).
 - query_redshift matter_lookup: send
-  `params={"client_matter_id": "matter_acme_v_beta"}` when the user
-  gives you a string ID (or `matter_id` if you have an internal one).
+  `params={"matter_id": "matter_acme_v_beta"}` when the user gives
+  you an internal-looking matter ID (matter_*, mat_*, or any string
+  the user calls a "matter ID"). Use `client_matter_id` when the
+  user gives you something formatted like a docket or external case
+  number (e.g. `LIT-2024-001`, `2024-CV-1234`).
 - query_redshift matter_spend_summary: requires `matter_id` and a
   `fiscal_period` like "2024-Q4".
 
@@ -75,7 +78,7 @@ Question: Look up matter_acme_v_beta and tell me the owner's department.
 
 Tool calls:
   query_redshift(query_type="matter_lookup",
-                 params={"client_matter_id": "matter_acme_v_beta"})
+                 params={"matter_id": "matter_acme_v_beta"})
     → matter_id=matter_acme_v_beta, name="Acme v. Beta", status=Open,
       owner_user_id=user_jane_smith
   search_users(query_type="user_lookup",

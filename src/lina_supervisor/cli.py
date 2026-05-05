@@ -48,7 +48,8 @@ def _build_redshift_worker() -> Any:
         return None
     import psycopg2
 
-    from lina_redshift.connection import apply_session_settings, resolve_config as redshift_config
+    from lina_redshift.connection import apply_session_settings
+    from lina_redshift.connection import resolve_config as redshift_config
     from lina_redshift.worker import RedshiftWorker
 
     cfg = redshift_config()
@@ -57,9 +58,7 @@ def _build_redshift_worker() -> Any:
     # gets via connect_with_kwargs so local repro matches production
     # behavior.
     conn = psycopg2.connect(cfg.dsn)
-    apply_session_settings(
-        conn, statement_timeout_ms=cfg.statement_timeout_ms, read_only=True
-    )
+    apply_session_settings(conn, statement_timeout_ms=cfg.statement_timeout_ms, read_only=True)
     return RedshiftWorker(connection=conn)
 
 

@@ -189,7 +189,11 @@ def test_dispatch_backend_unavailable_for_each_subsystem() -> None:
         ("search_vendors", {"vendors_worker": None}),
     ]
     for tool_name, override in cases:
-        kwargs = {"redshift_worker": MagicMock(), "users_worker": MagicMock(), "vendors_worker": MagicMock()}
+        kwargs = {
+            "redshift_worker": MagicMock(),
+            "users_worker": MagicMock(),
+            "vendors_worker": MagicMock(),
+        }
         kwargs.update(override)
         hub = WorkerHub(**kwargs)
         result = hub.dispatch(

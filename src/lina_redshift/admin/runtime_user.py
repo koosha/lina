@@ -86,19 +86,14 @@ def bootstrap_runtime_user(
         # surface exists. We still escape any single-quote.
         escaped = password.replace("'", "''")
         cur.execute(f"CREATE USER {RUNTIME_USERNAME} PASSWORD '{escaped}'")
-        cur.execute(
-            f"GRANT USAGE ON SCHEMA {schema} TO {RUNTIME_USERNAME}"
-        )
-        cur.execute(
-            f"GRANT SELECT ON ALL TABLES IN SCHEMA {schema} TO {RUNTIME_USERNAME}"
-        )
+        cur.execute(f"GRANT USAGE ON SCHEMA {schema} TO {RUNTIME_USERNAME}")
+        cur.execute(f"GRANT SELECT ON ALL TABLES IN SCHEMA {schema} TO {RUNTIME_USERNAME}")
         cur.execute(
             f"ALTER DEFAULT PRIVILEGES IN SCHEMA {schema} "
             f"GRANT SELECT ON TABLES TO {RUNTIME_USERNAME}"
         )
         cur.execute(
-            "SELECT count(*) FROM information_schema.tables "
-            "WHERE table_schema = %s",
+            "SELECT count(*) FROM information_schema.tables WHERE table_schema = %s",
             (schema,),
         )
         row = cur.fetchone()

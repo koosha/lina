@@ -26,7 +26,7 @@ EOT
 # remediation plan — the plaintext value would otherwise persist in Tofu
 # state. The Secrets Manager *container* is still managed by Tofu (see
 # secrets.tf), but the value is set out-of-band via the AWS CLI; see
-# deploy/runbook.md for the put-secret-value step.
+# docs/runbooks/deploy.md for the put-secret-value step.
 
 variable "redshift_admin_username" {
   description = "Admin username for the Redshift Serverless namespace."

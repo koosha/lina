@@ -23,4 +23,12 @@ resource "aws_redshiftserverless_workgroup" "this" {
     parameter_key   = "max_query_execution_time"
     parameter_value = "60000"
   }
+
+  # AWS layers in defaults for `auto_mv`, `enable_user_activity_logging`,
+  # `require_ssl`, `datestyle`, etc. that Tofu otherwise wants to delete
+  # on every apply. These are AWS-managed defaults — letting them drift
+  # freely keeps the workgroup stable across applies.
+  lifecycle {
+    ignore_changes = [config_parameter]
+  }
 }

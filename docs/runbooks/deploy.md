@@ -2,7 +2,7 @@
 
 After `tofu apply` from `infra/tofu/` succeeds, follow these steps to make the
 sandbox respond to real queries. The `tofu apply` step itself is documented in
-[`infra/tofu/README.md`](../infra/tofu/README.md).
+[`infra/tofu/README.md`](../../infra/tofu/README.md).
 
 All commands assume `aws --profile lina-sandbox` and that the working
 directory is the repo root. The local Python virtualenv at `.venv/` is used

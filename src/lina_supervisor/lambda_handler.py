@@ -1,12 +1,11 @@
-"""AWS Lambda handler for ``lina-chat ask`` over the v1.1 sandbox stack.
+"""AWS Lambda handler for ``lina-chat ask``.
 
-This module is plain Python so it can be unit-tested without spinning up
-Lambda. The deployment shim at ``deploy/lambda/lambda_handler.py`` imports
-``handler`` from here and exposes it as the container's entry point.
+Plain Python so it can be unit-tested without spinning up Lambda. The
+deployment shim at ``deploy/lambda/lambda_handler.py`` imports ``handler``
+from here and exposes it as the container's entry point.
 
-Module-level globals cache the OpenAI key (and, in production, the worker
-hub) across warm invocations so we only pay the Secrets Manager round-trip
-on cold starts.
+The OpenAI key is cached in a module-level dict across warm invocations
+so we only pay the Secrets Manager round-trip on cold starts.
 """
 
 from __future__ import annotations
@@ -38,10 +37,9 @@ def _env_int(name: str, default: int) -> int:
         return default
 
 
-# Input-size guards. Configurable at deploy time so operators can tighten
-# them before opening the demo URL beyond a handful of trusted users.
-# Defaults match the Wave 3 sandbox suggestions in
-# docs/plans/2026-05-04-remediation.md.
+# Input-size guards. Configurable at deploy time; defaults are
+# sandbox-friendly. Tighten before opening the URL beyond a handful of
+# trusted users.
 _MAX_BODY_BYTES = _env_int("LINA_MAX_BODY_BYTES", 64 * 1024)
 _MAX_QUERY_CHARS = _env_int("LINA_MAX_QUERY_CHARS", 4_000)
 _MAX_HISTORY_TURNS = _env_int("LINA_MAX_HISTORY_TURNS", 20)

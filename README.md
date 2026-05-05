@@ -1,8 +1,14 @@
 # LINA — Legal Intelligence & Navigation Assistant
 
-A read-only chat surface for lawyers. Natural-language questions go in; typed worker calls go out to three governed data stores; a synthesized answer comes back with citations. No freeform SQL or DSL ever reaches the LLM.
+A read-only chat surface for lawyers. Natural-language questions go in; typed
+worker calls go out to three governed data stores; a synthesized answer comes
+back with citations. No freeform SQL or DSL ever reaches the LLM.
 
-Project intent and the full data contract: [`lina.md`](./lina.md).
+**Live demo (sandbox):** [lina-web-sooty.vercel.app](https://lina-web-sooty.vercel.app)
+(passphrase shared out-of-band).
+
+Project intent and the data contract: [`docs/overview.md`](./docs/overview.md).
+Schema reference for all three databases: [`docs/architecture/data-schema.md`](./docs/architecture/data-schema.md).
 
 ---
 
@@ -11,13 +17,15 @@ Project intent and the full data contract: [`lina.md`](./lina.md).
 ```mermaid
 graph TB
     User([Lawyer])
-    User -->|"natural-language question"| Chat[lina-chat CLI]
+    User -->|"natural-language question"| UI["web/ React SPA"]
+    UI -->|"POST /ask + x-api-key"| APIGW[API Gateway HTTP API]
+    APIGW --> Lambda["lina-supervisor Lambda"]
 
-    subgraph D["Subsystem D · lina-supervisor"]
+    subgraph D["Subsystem D · lina-supervisor (LangGraph)"]
         direction TB
-        Chat --> Resolver[CallerResolver]
-        Resolver --> Graph["LangGraph state machine<br/>(route → execute_tools → synthesize)"]
-        Graph <--> LLM[(OpenAI gpt-5.2<br/>OpenAI API)]
+        Lambda --> Resolver[CallerResolver]
+        Resolver --> Graph["route → execute_tools → synthesize"]
+        Graph <--> LLM[(gpt-5.2)]
     end
 
     Graph -->|tool: query_redshift| RedshiftWorker
@@ -25,7 +33,7 @@ graph TB
     Graph -->|tool: search_vendors| VendorSearchWorker
 
     subgraph C["Subsystem C · lina-redshift"]
-        RedshiftWorker --> RS[("Amazon Redshift<br/><b>legal_matter_spend</b><br/>12 tables · 4 MVs")]
+        RedshiftWorker --> RS[("Amazon Redshift<br/><b>legal_matter_spend</b><br/>15 tables · 3 MVs · 1 view")]
     end
 
     subgraph A["Subsystem A · lina-users"]
@@ -36,7 +44,7 @@ graph TB
         VendorSearchWorker --> OS2[("Amazon OpenSearch<br/><b>vendor_lawyer_profiles_v1</b>")]
     end
 
-    Graph -->|"streamed answer<br/>+ source packets"| User
+    Graph -->|"answer + cited packets"| UI
 
     classDef backend fill:#1e293b,stroke:#475569,color:#e2e8f0
     classDef worker fill:#0f766e,stroke:#14b8a6,color:#f0fdfa
@@ -46,111 +54,77 @@ graph TB
     class LLM llm
 ```
 
-**How it works.** The user asks a question. The supervisor resolves the user's `CallerContext` via Subsystem A (`user_lookup`), then enters a LangGraph loop: OpenAI (`gpt-5.2`, with optional `reasoning_effort` from `none` → `xhigh`) picks one of three tools (`query_redshift`, `search_users`, `search_vendors`) with structured `{query_type, params}` arguments matching a registered template. The matching worker validates roles, runs the bounded query, and returns a normalized `ResultPacket`. The model either calls another tool or synthesizes a final streaming answer that cites every packet it consumed. A hard cap (`max_worker_calls=8` per turn) prevents runaway loops.
+The user asks a question. The supervisor resolves a `CallerContext` via
+Subsystem A (`user_lookup`), then loops: an LLM picks one of three tools
+with structured `{query_type, params}` arguments matching a registered
+template; the matching worker validates roles, runs the bounded query, and
+returns a normalized `ResultPacket`. The model either calls another tool or
+synthesizes a final streaming answer that cites every packet it consumed
+with inline `[matter]`/`[people]`/`[counsel]` source tags. A hard cap
+(`max_worker_calls=8` per turn) prevents runaway loops, and any over-budget
+tool calls in a single turn get a structured `WorkerCallBudgetExceeded`
+placeholder so the LLM doesn't see a missing tool reply.
 
-Each worker is independently usable as a library or CLI — see the per-subsystem sections below.
+| Subsystem | Library | CLI | Backend | Templates |
+|---|---|---|---|---|
+| **C** Matter & Spend | `lina_redshift` | `lina-redshift` | Amazon Redshift Serverless (Postgres locally) | 6 |
+| **A** User Profiles | `lina_users` | `lina-users` | Amazon OpenSearch | 4 |
+| **B** Outside Counsel | `lina_vendors` | `lina-vendors` | Amazon OpenSearch | 4 |
+| **D** Supervisor | `lina_supervisor` | `lina-chat` | A + B + C + LLM | — |
 
-| Subsystem | Worker | CLI | Backend | Templates | Design doc |
-|---|---|---|---|---|---|
-| **C** | `RedshiftWorker` | `lina-redshift` | Amazon Redshift Serverless (Postgres locally) | 6 | [redshift](./docs/design/2026-05-02-lina-redshift-worker-design.md) |
-| **A** | `UserSearchWorker` | `lina-users` | Amazon OpenSearch | 4 | [opensearch](./docs/design/2026-05-02-lina-opensearch-workers-design.md) |
-| **B** | `VendorSearchWorker` | `lina-vendors` | Amazon OpenSearch | 4 | [opensearch](./docs/design/2026-05-02-lina-opensearch-workers-design.md) |
-| **D** | LangGraph + OpenAI supervisor | `lina-chat` | A + B + C | — | [supervisor](./docs/design/2026-05-02-lina-supervisor-design.md) |
+Each worker is independently usable as a library or CLI. Schema details
+per subsystem live in [`docs/architecture/data-schema.md`](./docs/architecture/data-schema.md).
 
 ---
 
 ## Quickstart
 
-### Install
-
-The project uses [`uv`](https://docs.astral.sh/uv/) for environment + dependency management. The committed `uv.lock` pins exact versions for reproducibility.
-
-```bash
-# One-time uv install (macOS Homebrew — or see https://docs.astral.sh/uv/#installation)
-brew install uv
-
-# Provision the venv and install deps + dev extras (recreates .venv if missing)
-uv sync --extra dev
-```
-
-`uv sync` reads `pyproject.toml` + `uv.lock`, builds a `.venv/` if absent, installs the locked package set, and removes any extras no longer in the manifest (so the venv never drifts).
-
-### Run the unit suite
-
-The unit tests are hermetic. C uses `pytest-postgresql` to spin up an ephemeral Postgres per session; A and B use `testcontainers[opensearch]` (Docker required — tests skip cleanly otherwise).
+The project uses [`uv`](https://docs.astral.sh/uv/) for environment +
+dependency management. The committed `uv.lock` pins exact versions for
+reproducibility (the Lambda Dockerfile installs from a hashed export of
+the same lockfile — see [`deploy/lambda/regen-requirements.sh`](./deploy/lambda/regen-requirements.sh)).
 
 ```bash
-uv run pytest -v
-# or, with the venv activated: pytest -v
+brew install uv                     # one-time
+uv sync --extra dev                  # provision .venv from uv.lock + dev extras
+uv run pytest -v                     # 410 unit tests, hermetic
 ```
 
-`uv run <cmd>` executes inside the project's venv without you having to `source .venv/bin/activate` first; if you prefer the activated-shell workflow, the `.venv/bin/<tool>` paths still work (`source .venv/bin/activate` then `pytest -v`).
+C uses `pytest-postgresql` for an ephemeral Postgres per session; A and B
+use `testcontainers[opensearch]` (Docker required — tests skip cleanly
+otherwise).
 
 ### Try each CLI locally
 
-#### `lina-redshift` — matter, vendor, and timekeeper analytics
-
 ```bash
+# Subsystem C — matter / vendor / timekeeper analytics (Postgres-emulated)
 docker run -d --name lina-pg -e POSTGRES_PASSWORD=lina -p 5432:5432 postgres:16
 export LINA_POSTGRES_DSN=postgresql://postgres:lina@localhost:5432/postgres
-
 lina-redshift --target postgres migrate up
 lina-redshift --target postgres seed
 lina-redshift --target postgres run matter_spend_summary \
     --params '{"matter_ids": ["matter_acme_v_beta"], "fiscal_periods": ["2024-Q4"]}' \
     --user-id user_jane_smith --caller-roles legal_ops
-```
 
-#### `lina-users` and `lina-vendors` — corporate user / vendor lawyer search
-
-```bash
+# Subsystems A + B — corporate user / vendor lawyer search (real OpenSearch)
 export LINA_OPENSEARCH_HOST=https://search-corp.us-east-1.es.amazonaws.com
 export LINA_OPENSEARCH_AUTH=aws_sigv4
 export LINA_AWS_REGION=us-east-1
-
 lina-users indices apply && lina-users seed
-lina-users run user_search --params '{"query": "privacy counsel"}' \
-    --user-id user_jane_smith --caller-roles legal_ops
-
 lina-vendors indices apply && lina-vendors seed
-lina-vendors run lawyer_search --params '{"query": "California privacy litigation"}' \
+lina-users run user_search --params '{"query":"privacy counsel"}' \
     --user-id user_jane_smith --caller-roles legal_ops
-```
 
-#### `lina-chat` — the chat supervisor
-
-```bash
+# Subsystem D — supervisor (needs at least one worker reachable)
 export OPENAI_API_KEY=sk-...
-export LINA_REDSHIFT_DSN=postgresql://user:pass@workgroup-host:5439/dev
-export LINA_OPENSEARCH_HOST=https://search-corp.us-east-1.es.amazonaws.com
-export LINA_OPENSEARCH_AUTH=aws_sigv4
-export LINA_AWS_REGION=us-east-1
-
 lina-chat ask --user-id user_jane_smith \
     --query "How much did Walker bill on Acme last quarter?"
-
-lina-chat repl --user-id user_jane_smith        # multi-turn
+lina-chat repl --user-id user_jane_smith       # multi-turn
 ```
 
-`lina-chat` lazily detects which workers are reachable and only exposes the matching tools to the LLM, so it stays usable when only Redshift or only OpenSearch is configured.
-
-### Run the integration suites against real backends
-
-```bash
-# Redshift Serverless (8 tests)
-lina-redshift --target redshift migrate up && lina-redshift --target redshift seed
-pytest -m integration tests/integration/test_redshift_smoke.py -v
-
-# AWS OpenSearch (8 tests — A + B)
-lina-users indices apply && lina-users seed
-lina-vendors indices apply && lina-vendors seed
-pytest -m integration tests/integration/lina_users tests/integration/lina_vendors -v
-
-# Supervisor (2 tests, VCR-replayed; cassette or live OPENAI_API_KEY required)
-pytest -m integration tests/integration/lina_supervisor -v
-```
-
-Without env vars (and without committed supervisor cassettes), `pytest -m integration` collects 18 tests and skips all of them.
+`lina-chat` lazily detects which workers are reachable and only exposes
+the matching tools to the LLM, so it stays usable when only Redshift or
+only OpenSearch is configured.
 
 ---
 
@@ -172,7 +146,6 @@ caller = CallerContext(
     request_id="req_42",
 )
 
-# Redshift
 rs = RedshiftWorker(connection=psycopg2.connect(os.environ["LINA_REDSHIFT_DSN"]))
 packet = rs.run(
     query_type="matter_spend_summary",
@@ -180,25 +153,26 @@ packet = rs.run(
     caller=caller,
 )
 
-# OpenSearch — users
 client = open_client(os_config())
 users = UserSearchWorker(client=client, config=os_config())
 packet = users.run(query_type="user_lookup", params={"user_id": "user_jane_smith"}, caller=caller)
 
-# OpenSearch — vendors
 vendors = VendorSearchWorker(client=client, config=os_config())
 packet = vendors.run(query_type="lawyer_search", params={"query": "privacy"}, caller=caller)
 
 print(packet.model_dump_json(by_alias=True, indent=2))
 ```
 
-The supervisor (`lina_supervisor`) wraps these three workers via `WorkerHub` + LangGraph. See [`docs/design/2026-05-02-lina-supervisor-design.md`](./docs/design/2026-05-02-lina-supervisor-design.md) for the full graph and tool schemas.
+The supervisor (`lina_supervisor`) wraps these three workers via a
+`WorkerHub` and a LangGraph state machine.
 
 ---
 
 ## Templates
 
-14 read-only templates total. Each `query_type` is parameterized by a Pydantic model and gated by a role allow-list. Run `<cli> list-templates` to dump full parameter schemas as JSON.
+14 read-only templates total. Each `query_type` is parameterized by a
+Pydantic model and gated by a role allow-list. Run `<cli> list-templates`
+to dump full parameter schemas as JSON.
 
 ### Subsystem C — `lina-redshift` (6)
 
@@ -239,7 +213,7 @@ The supervisor (`lina_supervisor`) wraps these three workers via `WorkerHub` + L
 |---|---|---|
 | `LINA_REDSHIFT_DSN` | when targeting Redshift | DSN for the Redshift Serverless workgroup |
 | `LINA_POSTGRES_DSN` | when targeting Postgres locally | DSN for local Postgres |
-| `LINA_STATEMENT_TIMEOUT_MS` | no (default 30000) | Per-query timeout |
+| `LINA_STATEMENT_TIMEOUT_MS` | no (default `30000`) | Per-query timeout |
 | `LINA_LOG_FORMAT` | no (default `console`) | `json` for prod, `console` for dev |
 | `LINA_EXPLAIN_BEFORE_EXEC` | no | When `1`, runs `EXPLAIN` before every query and logs the plan |
 
@@ -251,89 +225,91 @@ The supervisor (`lina_supervisor`) wraps these three workers via `WorkerHub` + L
 | `LINA_OPENSEARCH_AUTH` | no (default `basic`) | One of `basic`, `aws_sigv4`, `none` |
 | `LINA_OPENSEARCH_USER` / `LINA_OPENSEARCH_PASSWORD` | when `auth=basic` | HTTP basic credentials |
 | `LINA_AWS_REGION` | when `auth=aws_sigv4` | Region for SigV4 signing |
-| `LINA_OPENSEARCH_REQUEST_TIMEOUT_SECONDS` | no (default 30) | Per-request timeout |
+| `LINA_OPENSEARCH_REQUEST_TIMEOUT_SECONDS` | no (default `30`) | Per-request timeout |
 
 ### Supervisor (Subsystem D — `lina-chat`)
 
 | Variable | Required | Purpose |
 |---|---|---|
 | `OPENAI_API_KEY` | yes | OpenAI API key |
-| `LINA_SUPERVISOR_MODEL` | no (default `gpt-5.2`) | Override the OpenAI model |
-| `LINA_SUPERVISOR_REASONING_EFFORT` | no (default `none`) | One of `none`, `low`, `medium`, `high`, `xhigh`. `none` = treat as a non-reasoning chat model (fastest); higher levels improve multi-hop tool routing at higher latency + cost. Only sent to the API when not `none`. |
-| `LINA_SUPERVISOR_MAX_WORKER_CALLS` | no (default 8) | Hard cap on worker calls per user turn |
-| `LINA_SUPERVISOR_ROUTE_MAX_TOKENS` | no (default 2048) | Token cap for routing pass (`max_completion_tokens`) |
-| `LINA_SUPERVISOR_SYNTHESIZE_MAX_TOKENS` | no (default 4096) | Token cap for synthesis pass (`max_completion_tokens`) |
-| `LINA_SUPERVISOR_REQUEST_TIMEOUT_SECONDS` | no (default 60) | Per-request timeout for OpenAI |
+| `LINA_SUPERVISOR_MODEL` | no (default `gpt-5.2`) | Override the model |
+| `LINA_SUPERVISOR_REASONING_EFFORT` | no (default `none`) | One of `none`, `low`, `medium`, `high`, `xhigh`. Higher levels improve multi-hop tool routing at higher latency + cost. |
+| `LINA_SUPERVISOR_MAX_WORKER_CALLS` | no (default `8`) | Hard cap on worker calls per user turn |
+| `LINA_SUPERVISOR_ROUTE_MAX_TOKENS` | no (default `2048`) | Token cap for the routing pass |
+| `LINA_SUPERVISOR_SYNTHESIZE_MAX_TOKENS` | no (default `4096`) | Token cap for the synthesis pass |
+| `LINA_SUPERVISOR_REQUEST_TIMEOUT_SECONDS` | no (default `25`) | Per-request timeout for the LLM client. Sized to fit inside API Gateway's 30 s integration timeout. |
 
-The supervisor reuses the Redshift and OpenSearch env vars above; any worker whose env vars are unset is omitted from the tool catalog rather than failing the run.
+### Lambda-only (set by Tofu, not in dev)
+
+| Variable | Purpose |
+|---|---|
+| `LINA_REDSHIFT_RUNTIME_SECRET_ARN` | Read-only `lina_app_readonly` user credentials. Preferred over the admin secret. |
+| `LINA_REDSHIFT_SECRET_ARN` | Admin secret — fallback during the runtime-user cutover. |
+| `LINA_OPENAI_SECRET_ARN` | OpenAI key. Set via `aws secretsmanager put-secret-value` after `tofu apply` (never written by Tofu). |
+| `LINA_REDSHIFT_HOST`, `LINA_REDSHIFT_CONNECT_TIMEOUT` | Redshift connection knobs. |
+| `LINA_MAX_BODY_BYTES`, `LINA_MAX_QUERY_CHARS`, `LINA_MAX_HISTORY_TURNS`, `LINA_MAX_HISTORY_MESSAGE_CHARS`, `LINA_MAX_TOTAL_HISTORY_CHARS` | Request input caps; defaults are sandbox-friendly. |
 
 ---
 
 ## Cross-subsystem ID parity
 
-Named seeds across A, B, and C share fixed IDs so end-to-end golden-path tests that span subsystems resolve cleanly:
+Named seeds across A, B, and C share fixed IDs so end-to-end tests that
+span subsystems resolve cleanly:
 
-- **A ↔ C** — `lina_users` named users (`user_jane_smith`, `user_alex_lee`, …) match the `matter_owner_user_id` values referenced by `lina_redshift.seed.named_entities`.
-- **B ↔ C** — `lina_vendors` named timekeepers (`tk_walker_partner`, `tk_walker_associate`, `tk_jones_partner`, `tk_meridian_partner`, `tk_meridian_paralegal`) match the `dim_timekeeper` named entries in C, and the `vendor_*` IDs match `dim_vendor` entries.
+- **A ↔ C** — `lina_users` named users (`user_jane_smith`, `user_alex_lee`, …) match the `matter_owner_user_id` values in `lina_redshift.seed.named_entities`.
+- **B ↔ C** — `lina_vendors` named timekeepers (`tk_walker_partner`, …) match `dim_timekeeper`; `vendor_*` IDs match `dim_vendor`.
 
-Generated (bulk-seeded) test data in each subsystem uses a disjoint ID prefix so the named-seed surface is never overwritten.
+Generated bulk seed data uses a disjoint ID prefix so the named-seed
+surface is never overwritten.
 
 ---
 
 ## Quality gates
 
 ```bash
-pytest -v                          # unit suite
-mypy                               # strict type-check across all four subsystems
-ruff check src tests               # lint
-ruff format --check src tests      # formatting
-coverage report --fail-under=80    # coverage gate
+uv run pytest -v                          # 410 unit tests
+uv run mypy                               # strict type-check across all four subsystems
+uv run ruff check src tests               # lint
+uv run ruff format --check src tests      # formatting
 ```
 
-CI-ready snapshot: 303 unit tests passing, ≥91% coverage on `src/lina_redshift/`, mypy/ruff/format clean across 154 source files.
+CI: `.github/workflows/ci-integration.yml` runs the integration suite
+against the dedicated `lina-ci` AWS environment on every PR that touches
+schema, templates, seed, IaC, supervisor, or dependencies. Auth via GitHub
+OIDC (no static keys in GitHub Secrets). `.github/workflows/ci-lockfile-check.yml`
+verifies the Lambda's pinned `requirements.txt` is in sync with `uv.lock`.
 
 ---
 
 ## Sandbox deployment
 
-An OpenTofu module under `infra/tofu/` provisions a demo-grade hosted sandbox
-on AWS. After `tofu apply` and a follow-up image build/push, `lina-chat ask`
-is reachable at a public HTTPS endpoint guarded by a single shared API key.
+OpenTofu under [`infra/tofu/`](./infra/tofu/) provisions the demo-grade
+sandbox: API Gateway HTTP API → Lambda container (Python 3.12) → Redshift
+Serverless + OpenSearch. Static SPA at [`web/`](./web/) ships to Vercel.
+A separate API Gateway authorizer Lambda checks the shared `x-api-key`
+against Secrets Manager. The chat Lambda runs as `lina_app_readonly` —
+read-only against Redshift; admin credentials are reserved for migrations
+and seed via the local CLI.
 
-See [`infra/tofu/README.md`](./infra/tofu/README.md) for first-time bootstrap
-and [`deploy/runbook.md`](./deploy/runbook.md) for image build, migrate, seed,
-and smoke-test commands.
+| Component | Where |
+|---|---|
+| Tofu module | [`infra/tofu/README.md`](./infra/tofu/README.md) |
+| Sandbox bring-up + cutover steps | [`docs/runbooks/deploy.md`](./docs/runbooks/deploy.md) |
+| CI environment provisioning | [`docs/runbooks/ci.md`](./docs/runbooks/ci.md) |
+| Frontend (React + Vite) | [`web/README.md`](./web/README.md) |
+| UI deployment plan (Vercel + alternatives) | [`docs/plans/ui-deployment.md`](./docs/plans/ui-deployment.md) |
+
+After `tofu apply`, the operator runs:
+
+1. `aws secretsmanager put-secret-value` for the OpenAI key (Tofu manages the secret container; the value lives out-of-band).
+2. `lina-redshift bootstrap-runtime-user --put-secret-arn …` to create the read-only DB user.
+3. `aws sns subscribe …` to receive CloudWatch alarms (Lambda errors, p95 duration > 25 s, 5xx, authorizer failures).
+4. Build + push the Lambda image; `lambda update-function-code`.
+5. `./scripts/post-deploy-smoke.sh` — eight checks against the live URL.
 
 Cost at idle: ~$28/month (OpenSearch dominates). Cost per query: ~$0.01–0.05
-(OpenAI tokens dominate). Tear down via `tofu destroy` between demo sessions
-to drop the bill to ~$0.
-
----
-
-## CI integration tests
-
-Every PR that touches schema, templates, seed, IaC, or dependencies triggers a
-workflow that runs the integration suite against a dedicated `lina-ci` AWS
-environment. Auth is via GitHub OIDC (no static keys in GitHub Secrets).
-
-See [`deploy/ci-runbook.md`](./deploy/ci-runbook.md) for first-time operator
-setup. Cost: ~$28/month idle (one shared OpenSearch domain), ~$0.10 per CI
-run. Tear-down: `tofu -chdir=infra/tofu/ci destroy`.
-
----
-
-## Out of scope (deferred follow-ups)
-
-See §11/§12 of each design doc. Highlights:
-
-- IAM auth, AWS Secrets Manager, IaC (Terraform / CDK)
-- Real ingestion pipelines (LEDES parsing, OpenSearch ingest, S3 → Redshift COPY)
-- Row-level + column-level filtering beyond template role gates
-- Custom fiscal calendars, FX rate service integration
-- Persistent supervisor session storage (current `InMemorySessionStore` is per-process)
-- FastAPI / HTTP service deployment of `lina-chat`
-- AWS Bedrock or Azure OpenAI as alternatives to direct OpenAI API
-- Hybrid retrieval (kNN on `profile_embedding` is reserved in the OpenSearch mappings)
+(LLM tokens dominate). Tear down with `tofu destroy` between demo
+sessions.
 
 ---
 
@@ -341,19 +317,25 @@ See §11/§12 of each design doc. Highlights:
 
 ```text
 lina/
-├── lina.md                              # source data contract
-├── docs/
-│   ├── specs/                           # 3 design docs, one per subsystem cycle
-│   └── plans/                           # 3 implementation plans
+├── README.md                  # this file
+├── docs/                      # all docs — see docs/README.md for the index
+│   ├── overview.md            # original brief + data contract
+│   ├── architecture/          # canonical schema reference
+│   ├── known-issues.md
+│   ├── runbooks/              # deploy.md, ci.md
+│   ├── plans/                 # active forward-looking work
+│   │   └── archive/           # completed plans (historical record)
+│   └── design/archive/        # original design specs (frozen snapshot)
+├── design-handoff/            # frozen UI wireframes (HANDOFF.md + JSX/CSS)
 ├── src/
-│   ├── lina_core/                       # shared: CallerContext, ResultPacket, opensearch, logging
-│   ├── lina_redshift/                   # Subsystem C — Redshift worker + CLI + seed + 18 migrations
-│   ├── lina_users/                      # Subsystem A — OpenSearch corp users
-│   ├── lina_vendors/                    # Subsystem B — OpenSearch vendor lawyers
-│   └── lina_supervisor/                 # Subsystem D — LangGraph supervisor
-└── tests/
-    ├── unit/                            # 303 hermetic tests
-    └── integration/                     # 18 staged tests (Redshift + OpenSearch + OpenAI VCR)
+│   ├── lina_core/             # shared: CallerContext, ResultPacket, opensearch, logging
+│   ├── lina_redshift/         # Subsystem C — worker, CLI, seed, 18 migrations, runtime-user bootstrap
+│   ├── lina_users/            # Subsystem A — OpenSearch corp users
+│   ├── lina_vendors/          # Subsystem B — OpenSearch vendor lawyers
+│   └── lina_supervisor/       # Subsystem D — LangGraph supervisor + Lambda handler
+├── tests/                     # 410 unit + 18 staged integration
+├── infra/tofu/                # OpenTofu sandbox + CI modules
+├── deploy/lambda/             # container Dockerfile + entry shim + pinned requirements
+├── scripts/                   # ci-*.sh helpers + post-deploy-smoke.sh
+└── web/                       # React SPA (Vite + TypeScript)
 ```
-
-Per-subsystem layout details live in §3 of each design doc.

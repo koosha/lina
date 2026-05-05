@@ -86,9 +86,7 @@ def connect_with_kwargs(
         connect_timeout=connect_timeout,
     )
     try:
-        apply_session_settings(
-            conn, statement_timeout_ms=statement_timeout_ms, read_only=read_only
-        )
+        apply_session_settings(conn, statement_timeout_ms=statement_timeout_ms, read_only=read_only)
     except Exception:
         conn.close()
         raise

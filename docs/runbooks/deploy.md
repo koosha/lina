@@ -237,6 +237,29 @@ recovery window; ECR images and CloudWatch log groups are deleted
 immediately. Re-running `tofu apply` recreates everything from scratch and
 the runbook above starts fresh.
 
+## Between-demos pause / resume
+
+For the common case of "I'm not demoing tonight, stop the bill until
+tomorrow," use [`scripts/sandbox.sh`](../../scripts/sandbox.sh) — it
+wraps `tofu destroy` and the entire post-apply checklist from §0-§3
+above behind two single-word commands:
+
+```bash
+TOFU=/tmp/tofu ./scripts/sandbox.sh status   # report state + idle cost
+TOFU=/tmp/tofu ./scripts/sandbox.sh down     # full tofu destroy → ~$0/mo idle
+TOFU=/tmp/tofu ./scripts/sandbox.sh up       # tofu apply + put OpenAI key
+                                             # + image build/push + Lambda
+                                             # swap + Redshift migrate/seed
+                                             # + runtime user bootstrap
+                                             # + OpenSearch indices/seed
+                                             # + smoke test
+```
+
+`up` takes ~20 minutes end-to-end (OpenSearch domain creation is the
+slow step). The API Gateway HTTP API ID changes on every `up`, so the
+script prints the exact `vercel env` + `vercel --prod` commands needed
+to refresh the UI bundle's `VITE_LINA_API_BASE`.
+
 ## Local CLI against the sandbox backends
 
 The same env vars used in §2 also let `lina-chat repl` run from a laptop

@@ -44,13 +44,18 @@ provider "aws" {
 }
 
 # Auto-detect the current public IP when var.operator_ip is null. Operators
-# should set TF_VAR_operator_ip explicitly for stable allowlisting.
+# should set TF_VAR_operator_ip explicitly for stable allowlisting; the
+# wrapper script (scripts/sandbox.sh) does this via a multi-service
+# fallback chain. `count` makes this data source skip the API call entirely
+# when var.operator_ip is provided — a single ipify outage would otherwise
+# block every apply/destroy (hit in practice on 2026-05-20).
 data "http" "myip" {
-  url = "https://api.ipify.org"
+  count = var.operator_ip == null ? 1 : 0
+  url   = "https://api.ipify.org"
 }
 
 locals {
-  operator_cidr = var.operator_ip != null ? var.operator_ip : "${chomp(data.http.myip.response_body)}/32"
+  operator_cidr = var.operator_ip != null ? var.operator_ip : "${chomp(data.http.myip[0].response_body)}/32"
   name_prefix   = "lina-sandbox"
 }
 

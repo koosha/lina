@@ -74,6 +74,34 @@ _step() {
   printf '\n\033[1;36m▶ %s\033[0m\n' "$1"
 }
 
+# Resolve the operator's public IP for Redshift/OpenSearch allowlisting.
+# Tofu's data.http.myip default is api.ipify.org, which has been flaky
+# (read-resets mid-handshake during real applies). We try a fallback
+# chain and export the result as TF_VAR_operator_ip so tofu doesn't have
+# to call out itself. main.tf skips the data source when that var is set.
+_resolve_operator_ip() {
+  local ip
+  for svc in https://checkip.amazonaws.com https://ipv4.icanhazip.com https://api.ipify.org; do
+    ip=$(curl -sS --max-time 5 "$svc" 2>/dev/null | tr -d '[:space:]') || continue
+    if [[ "$ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+      printf '%s/32' "$ip"
+      return 0
+    fi
+  done
+  return 1
+}
+
+_ensure_operator_ip() {
+  if [[ -n "${TF_VAR_operator_ip:-}" ]]; then
+    return 0
+  fi
+  local cidr
+  cidr=$(_resolve_operator_ip) \
+    || _die "could not resolve public IP from any of checkip.amazonaws.com / icanhazip / ipify. Set TF_VAR_operator_ip manually."
+  export TF_VAR_operator_ip="$cidr"
+  printf 'Resolved operator IP: %s\n' "$cidr"
+}
+
 # Does the sandbox module currently have any resources in state?
 _state_count() {
   "$TOFU" -chdir="$TOFU_DIR" state list 2>/dev/null | wc -l | tr -d ' '
@@ -117,6 +145,7 @@ cmd_down() {
     echo "Sandbox is already DOWN (tofu state is empty). Nothing to do."
     return 0
   fi
+  _ensure_operator_ip
   _step "Tearing down the sandbox via tofu destroy (~5-15 min)…"
   # The 300 s plugin protocol timeout matches the runbook — OpenSearch
   # destroy can spend a while in DELETING state.
@@ -127,6 +156,7 @@ cmd_down() {
 }
 
 cmd_up() {
+  _ensure_operator_ip
   # ── 1. tofu apply ──────────────────────────────────────────────────
   _step "1/8 · tofu apply (~15 min — OpenSearch domain bring-up is the slow one)"
   PLUGIN_PROTOCOL_TIMEOUT=300 "$TOFU" -chdir="$TOFU_DIR" apply -auto-approve
